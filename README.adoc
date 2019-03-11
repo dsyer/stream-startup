@@ -1,0 +1,10 @@
+[.lead]
+
+```
+class       method  sample  beans  classes      heap    memory  median  mean  range
+StreamBenchmark  main  empt  24.000   3781.000  5.055   38.345  0.520  0.525  0.005
+StreamBenchmark  main  amqp  49.000   3974.000  6.443   41.465  0.598  0.607  0.014
+StreamBenchmark  main  intg  77.000   4571.000  6.640   45.664  0.759  0.772  0.021
+StreamBenchmark  main  jlog  668.000  5256.000  10.471  59.601  1.086  1.098  0.012
+StreamBenchmark  main  demo  668.000  5682.000  10.012  61.274  1.133  1.151  0.021
+```
