@@ -16,7 +16,6 @@
 package com.example.bench;
 
 import com.example.demo.DemoApplication;
-import com.example.empt.EmptyApplication;
 
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.AuxCounters.Type;
@@ -54,8 +53,7 @@ public class StreamBenchmark {
 
 		public static enum Sample {
 
-			empt(EmptyApplication.class), amqp, intg, http, demo;
-			// empt(EmptyApplication.class), amqp, jlog, demo, actr;
+			empt, amqp, intg, demo;
 
 			private Class<?> config;
 
