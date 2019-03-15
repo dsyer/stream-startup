@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.handler.annotation.Payload;
 
 @SpringBootApplication
-// @Import(LazyInitBeanFactoryPostProcessor.class)
 public class DemoApplication {
 
 	public static void main(String[] args) throws Exception {

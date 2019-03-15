@@ -35,7 +35,7 @@ public class ProcessLauncherStateTests {
 		// System.setProperty("bench.args", "-verbose:class");
 		ProcessLauncherState state = new ProcessLauncherState("target");
 		state.setMainClass(DemoApplication.class.getName());
-		state.setProfiles("amqp");
+		state.setProfiles("empt");
 		state.before();
 		state.run();
 		state.after();

@@ -1,5 +1,9 @@
 [.lead]
 
+Benchmarks for Spring AMPQ, Spring Integration and Spring Cloud Stream startup time.
+
+== Results
+
 ```
 class       method  sample  beans  classes      heap    memory  median  mean  range
 StreamBenchmark  main  empt  24.000   3781.000  5.055   38.345  0.520  0.525  0.005
@@ -8,3 +12,30 @@ StreamBenchmark  main  intg  77.000   4571.000  6.640   45.664  0.759  0.772  0.
 StreamBenchmark  main  jlog  668.000  5256.000  10.471  59.601  1.086  1.098  0.012
 StreamBenchmark  main  demo  668.000  5682.000  10.012  61.274  1.133  1.151  0.021
 ```
+
+Key:
+
+* `empt` - an empty application, only Spring Boot
+* `amqp` - a Spring Boot application with a Rabbit listener
+* `intg` - just Spring Integration autoconfiguration
+* `jlog` - the `demo` sample with classpath exclusions (validator and logback)
+* `demo` - Spring Cloud Stream and Rabbit with a stream listener
+
+== Running
+
+You can run the benchmarks in the IDE (or on the command line) by
+running the test class `StreamBenchmark`. Open it up in the IDE and
+make sure annotation processing is switched on (update the Maven
+project and check the compiler settings in the project in
+Eclipse). Run the test with `-DpublishTo=csv:target/result.csv` to get
+the results in a nice CSV format at the end.
+
+== How it Works
+
+The different samples are run with different classpaths to control the
+Spring Boot autoconfiguration. The classpath is computed using the
+https://github.com/dayer/spring-boot-thin-launcher[Thin Launcher]
+using a "profile" whose name is the sample name. So you will find
+files in `META-INF/thin-*.properties` corresponding to the sample
+names. The `demo` sample is canonical - it runs with the full
+classpath from the `pom.xml`.
