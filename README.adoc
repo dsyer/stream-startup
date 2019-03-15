@@ -30,6 +30,16 @@ project and check the compiler settings in the project in
 Eclipse). Run the test with `-DpublishTo=csv:target/result.csv` to get
 the results in a nice CSV format at the end.
 
+If you want to just run one of the samples edit the `MainState` and
+add the name of the sample to the `@Param` annotation, e.g.
+
+```
+		@Param("demo")
+		private Sample sample;
+```
+
+runs just the `demo` sample.
+
 == How it Works
 
 The different samples are run with different classpaths to control the

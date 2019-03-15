@@ -71,7 +71,7 @@ public class StreamBenchmark {
 
 		}
 
-		@Param
+		@Param("demo")
 		private Sample sample;
 
 		public MainState() {
