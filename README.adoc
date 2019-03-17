@@ -9,16 +9,14 @@ class       method  sample  beans  classes      heap    memory  median  mean  ra
 StreamBenchmark  main  empt  24.000   3781.000  5.055   38.345  0.520  0.525  0.005
 StreamBenchmark  main  amqp  49.000   3974.000  6.443   41.465  0.598  0.607  0.014
 StreamBenchmark  main  intg  77.000   4571.000  6.640   45.664  0.759  0.772  0.021
-StreamBenchmark  main  jlog  668.000  5256.000  10.471  59.601  1.086  1.098  0.012
-StreamBenchmark  main  demo  668.000  5682.000  10.012  61.274  1.133  1.151  0.021
+StreamBenchmark  main  demo  185.000  6168.000  10.388  60.764  1.172  1.214  0.048
 ```
 
 Key:
 
-* `empt` - an empty application, only Spring Boot
+* `empt` - an empty application  only Spring Boot
 * `amqp` - a Spring Boot application with a Rabbit listener
 * `intg` - just Spring Integration autoconfiguration
-* `jlog` - the `demo` sample with classpath exclusions (validator and logback)
 * `demo` - Spring Cloud Stream and Rabbit with a stream listener
 
 == Running
@@ -31,7 +29,7 @@ Eclipse). Run the test with `-DpublishTo=csv:target/result.csv` to get
 the results in a nice CSV format at the end.
 
 If you want to just run one of the samples edit the `MainState` and
-add the name of the sample to the `@Param` annotation, e.g.
+add the name of the sample to the `@Param` annotation  e.g.
 
 ```
 		@Param("demo")
