@@ -34,6 +34,7 @@ public class ProcessLauncherStateTests {
 	public void vanilla(OutputCapture output) throws Exception {
 		// System.setProperty("bench.args",
 		// "-agentlib:jdwp=transport=dt_socket,server=y,address=8000");
+		System.setProperty("debug", "true");
 		ProcessLauncherState state = new ProcessLauncherState("target");
 		state.setMainClass(LazyApplication.class.getName());
 		state.setProfiles("lazy");

@@ -15,8 +15,7 @@ import org.springframework.stereotype.Component;
 public class LazyApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(LazyApplication.class, args)
-				.getBean(LazyListenerStarter.class).afterSingletonsInstantiated();
+		SpringApplication.run(LazyApplication.class, args);
 	}
 
 	@Bean

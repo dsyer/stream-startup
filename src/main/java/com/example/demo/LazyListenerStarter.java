@@ -60,14 +60,15 @@ public class LazyListenerStarter
 
 	@Override
 	public void afterSingletonsInstantiated() {
+		System.out.println("Submitting start...");
 		final ExecutorService exec = Executors.newSingleThreadExecutor();
 		exec.execute(() -> {
 			try {
+				System.out.println("Starting listener...");
 				// use the underlying RabbitCF to avoid triggering admin provisioning
 				Connection conn = this.cf.getRabbitConnectionFactory().newConnection();
 				Channel channel = conn.createChannel();
 				GetResponse got = channel.basicGet(this.queue, false);
-				System.out.println("Starting listener...");
 				if (got != null) {
 					startIt(conn, channel, got.getEnvelope().getDeliveryTag());
 					exec.shutdown();
