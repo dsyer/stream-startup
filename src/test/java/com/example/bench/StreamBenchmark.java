@@ -15,7 +15,9 @@
  */
 package com.example.bench;
 
+import com.example.bench.StreamBenchmark.MainState.Sample;
 import com.example.demo.DemoApplication;
+import com.example.lazy.LazyApplication;
 
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.AuxCounters.Type;
@@ -44,6 +46,9 @@ public class StreamBenchmark {
 	@Benchmark
 	public void main(MainState state) throws Exception {
 		state.setMainClass(state.sample.getConfig().getName());
+		if (state.sample == Sample.lazy) {
+			state.addArgs("-Dspring.main.lazy-initialization=true");
+		}
 		state.run();
 	}
 
@@ -53,7 +58,7 @@ public class StreamBenchmark {
 
 		public static enum Sample {
 
-			empt, amqp, intg, demo;
+			empt, amqp, intg, demo, lazy(LazyApplication.class);
 
 			private Class<?> config;
 
@@ -71,7 +76,7 @@ public class StreamBenchmark {
 
 		}
 
-		@Param
+		@Param({ "amqp", "lazy" })
 		private Sample sample;
 
 		public MainState() {

@@ -17,7 +17,7 @@
 package com.example.bench;
 
 import com.example.bench.CaptureSystemOutput.OutputCapture;
-import com.example.demo.DemoApplication;
+import com.example.lazy.LazyApplication;
 
 import org.junit.jupiter.api.Test;
 
@@ -32,10 +32,11 @@ public class ProcessLauncherStateTests {
 	@Test
 	@CaptureSystemOutput
 	public void vanilla(OutputCapture output) throws Exception {
-		// System.setProperty("bench.args", "-verbose:class");
+		// System.setProperty("bench.args",
+		// "-agentlib:jdwp=transport=dt_socket,server=y,address=8000");
 		ProcessLauncherState state = new ProcessLauncherState("target");
-		state.setMainClass(DemoApplication.class.getName());
-		state.setProfiles("empt");
+		state.setMainClass(LazyApplication.class.getName());
+		state.setProfiles("lazy");
 		state.before();
 		state.run();
 		state.after();

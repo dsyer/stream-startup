@@ -21,12 +21,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 
-import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.SmartInitializingSingleton;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
-
 import com.rabbitmq.client.AMQP.BasicProperties;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -34,7 +28,14 @@ import com.rabbitmq.client.DefaultConsumer;
 import com.rabbitmq.client.Envelope;
 import com.rabbitmq.client.GetResponse;
 
-public class LazyListenerStarter implements SmartInitializingSingleton, ApplicationContextAware {
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+
+public class LazyListenerStarter
+		implements SmartInitializingSingleton, ApplicationContextAware {
 
 	private final CachingConnectionFactory cf;
 
@@ -44,7 +45,8 @@ public class LazyListenerStarter implements SmartInitializingSingleton, Applicat
 
 	private ApplicationContext applicationContext;
 
-	public LazyListenerStarter(CachingConnectionFactory cf, String queue, String beanName) {
+	public LazyListenerStarter(CachingConnectionFactory cf, String queue,
+			String beanName) {
 		this.cf = cf;
 		this.queue = queue;
 		this.beanName = beanName;
@@ -65,6 +67,7 @@ public class LazyListenerStarter implements SmartInitializingSingleton, Applicat
 				Connection conn = this.cf.getRabbitConnectionFactory().newConnection();
 				Channel channel = conn.createChannel();
 				GetResponse got = channel.basicGet(this.queue, false);
+				System.out.println("Starting listener...");
 				if (got != null) {
 					startIt(conn, channel, got.getEnvelope().getDeliveryTag());
 					exec.shutdown();
