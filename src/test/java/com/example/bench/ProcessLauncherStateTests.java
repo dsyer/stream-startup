@@ -17,8 +17,6 @@
 package com.example.bench;
 
 import com.example.bench.CaptureSystemOutput.OutputCapture;
-import com.example.lazy.LazyApplication;
-
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,7 +34,6 @@ public class ProcessLauncherStateTests {
 		// "-agentlib:jdwp=transport=dt_socket,server=y,address=8000");
 		System.setProperty("debug", "true");
 		ProcessLauncherState state = new ProcessLauncherState("target");
-		state.setMainClass(LazyApplication.class.getName());
 		state.setProfiles("lazy");
 		state.before();
 		state.run();

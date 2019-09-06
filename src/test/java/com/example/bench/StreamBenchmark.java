@@ -15,10 +15,8 @@
  */
 package com.example.bench;
 
-import com.example.bench.StreamBenchmark.MainState.Sample;
 import com.example.demo.DemoApplication;
-import com.example.lazy.LazyApplication;
-
+import jmh.mbr.junit5.Microbenchmark;
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.AuxCounters.Type;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -34,8 +32,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
-import jmh.mbr.junit5.Microbenchmark;
-
 @Measurement(iterations = 5, time = 1)
 @Warmup(iterations = 1, time = 1)
 @Fork(value = 2, warmups = 0)
@@ -45,10 +41,6 @@ public class StreamBenchmark {
 
 	@Benchmark
 	public void main(MainState state) throws Exception {
-		state.setMainClass(state.sample.getConfig().getName());
-		if (state.sample == Sample.lazy) {
-			state.addArgs("-Dspring.main.lazy-initialization=true");
-		}
 		state.run();
 	}
 
@@ -58,7 +50,7 @@ public class StreamBenchmark {
 
 		public static enum Sample {
 
-			empt, amqp, intg, demo, lazy(LazyApplication.class);
+			empt, intg, demo, lazy;
 
 			private Class<?> config;
 
@@ -76,7 +68,7 @@ public class StreamBenchmark {
 
 		}
 
-		@Param({ "amqp", "lazy" })
+		@Param({ "empt", "intg", "lazy", "demo" })
 		private Sample sample;
 
 		public MainState() {
@@ -113,7 +105,11 @@ public class StreamBenchmark {
 			if (sample != Sample.demo) {
 				setProfiles(sample.toString());
 			}
+			if (sample == Sample.lazy) {
+				addArgs("-Dspring.main.lazy-initialization=true");
+			}
 			super.before();
+			setMainClass(sample.getConfig().getName());
 		}
 
 	}
