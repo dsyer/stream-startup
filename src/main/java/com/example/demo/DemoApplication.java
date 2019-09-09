@@ -1,9 +1,11 @@
 package com.example.demo;
 
+import javax.sql.DataSource;
+
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.annotation.PartitionOffset;
 import org.springframework.kafka.annotation.TopicPartition;
@@ -33,39 +35,44 @@ public class DemoApplication {
 	}
 
 	@Bean
-	ConsumerConfiguration config() {
-		return new ConsumerConfiguration();
+	ConsumerConfiguration config(DataSource datasSource) {
+		return new ConsumerConfiguration(datasSource);
 	}
 
 }
 
-@ConfigurationProperties("kafka")
 class ConsumerConfiguration {
-	private int partition;
-	private long offset;
-	private String topic;
+	private int partition = 0;
+	private long offset = 0;
+	private String topic = "input";
+	private JdbcTemplate template;
+	private boolean initialized = false;
+
+	public ConsumerConfiguration(DataSource datasSource) {
+		this.template = new JdbcTemplate(datasSource);
+	}
 
 	public int getPartition() {
+		init();
 		return this.partition;
 	}
 
-	public void setPartition(int partition) {
-		this.partition = partition;
-	}
-
 	public long getOffset() {
+		init();
 		return this.offset;
 	}
 
-	public void setOffset(long offset) {
-		this.offset = offset;
-	}
-
 	public String getTopic() {
+		init();
 		return this.topic;
 	}
 
-	public void setTopic(String topic) {
-		this.topic = topic;
+	private void init() {
+		if (this.initialized) {
+			return;
+		}
+		this.offset = this.template.queryForObject("SELECT offset FROM offsets where id=1", Long.class);
+		this.initialized = true;
 	}
+
 }
