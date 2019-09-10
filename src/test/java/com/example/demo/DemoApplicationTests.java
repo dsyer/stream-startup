@@ -42,7 +42,6 @@ public class DemoApplicationTests {
 
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
-		Thread.sleep(1000L);
 		assertThat(output.getErr()).doesNotContain("kafka_offset=2");
 		assertThat(output.getErr()).contains("kafka_offset=3");
 	}
@@ -53,24 +52,27 @@ public class DemoApplicationTests {
 		private final KafkaTemplate<String, byte[]> template;
 		private final ConsumerFactory<String, byte[]> factory;
 
-		public KafkaClientConfiguration(KafkaTemplate<String, byte[]> template, ConsumerFactory<String, byte[]> factory) {
+		public KafkaClientConfiguration(KafkaTemplate<String, byte[]> template,
+				ConsumerFactory<String, byte[]> factory) {
 			this.template = template;
 			this.factory = factory;
 		}
 
 		@PostConstruct
 		public void init() {
-			Consumer<String, byte[]> consumer = factory.createConsumer();
-			TopicPartition partition = new TopicPartition("input", 0);
-			consumer.assign(Collections.singleton(partition));
-			if (consumer.position(partition)>2) {
-				System.err.println("No need to seed logs");
-				return;
+			try (Consumer<String, byte[]> consumer = factory.createConsumer()) {
+				TopicPartition partition = new TopicPartition("input", 0);
+				consumer.assign(Collections.singleton(partition));
+				if (consumer.position(partition) > 2) {
+					System.err.println("No need to seed logs");
+					return;
+				}
 			}
 			for (int i = 0; i < 5; i++) {
 				this.template.send("input", ("foo" + i).getBytes());
 			}
 		}
+
 	}
 
 	public static class Initializer
