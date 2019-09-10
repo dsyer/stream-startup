@@ -1,0 +1,1 @@
+INSERT IGNORE INTO offsets VALUES (1, 3);
