@@ -22,6 +22,8 @@ import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.retry.backoff.ExponentialBackOffPolicy;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 
@@ -33,10 +35,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ContextConfiguration(initializers = DemoApplicationTests.Initializer.class)
 public class DemoApplicationTests {
 
+	private RetryTemplate retry = new RetryTemplate();
+
+	{
+		retry.setBackOffPolicy(new ExponentialBackOffPolicy());
+	}
+
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
+		assertThat(retry.execute(context -> output.getErr().contains("kafka_offset=3"))
+				.booleanValue()).isTrue();
 		assertThat(output.getErr()).doesNotContain("kafka_offset=2");
-		assertThat(output.getErr()).contains("kafka_offset=3");
 	}
 
 	@TestConfiguration
