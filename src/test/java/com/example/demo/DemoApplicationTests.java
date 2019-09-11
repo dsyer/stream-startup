@@ -1,6 +1,5 @@
 package com.example.demo;
 
-import java.time.Duration;
 import java.util.Collections;
 import java.util.stream.Stream;
 
@@ -37,8 +36,8 @@ public class DemoApplicationTests {
 
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
-		String err = Awaitility.await().timeout(Duration.ofSeconds(2))
-				.until(output::getErr, value -> value.contains("kafka_offset=3"));
+		String err = Awaitility.await().until(output::getErr,
+				value -> value.contains("kafka_offset=3"));
 		assertThat(err).doesNotContain("kafka_offset=2");
 	}
 
