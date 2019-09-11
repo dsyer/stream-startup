@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.stream.Stream;
 
 import javax.annotation.PostConstruct;
+import javax.sql.DataSource;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
@@ -14,6 +15,7 @@ import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.lifecycle.Startables;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -21,6 +23,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.annotation.DirtiesContext;
@@ -34,11 +37,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ContextConfiguration(initializers = DemoApplicationTests.Initializer.class)
 public class DemoApplicationTests {
 
+	@Autowired
+	private JdbcTemplate jdbc;
+
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
 		String err = Awaitility.await().until(output::getErr,
 				value -> value.contains("kafka_offset=3"));
 		assertThat(err).doesNotContain("kafka_offset=2");
+		Awaitility.await().until(() -> jdbc.queryForObject("SELECT offset FROM offsets WHERE id=1", Long.class),
+				value -> value > 3);
+		assertThat(jdbc.queryForObject("SELECT max(offset) FROM event", Long.class)).isGreaterThan(3);
 	}
 
 	@TestConfiguration
@@ -46,15 +55,19 @@ public class DemoApplicationTests {
 
 		private final KafkaTemplate<String, byte[]> template;
 		private final ConsumerFactory<String, byte[]> factory;
+		private final JdbcTemplate jdbc;
 
 		public KafkaClientConfiguration(KafkaTemplate<String, byte[]> template,
-				ConsumerFactory<String, byte[]> factory) {
+				ConsumerFactory<String, byte[]> factory, DataSource datasSource) {
+			this.jdbc = new JdbcTemplate(datasSource);
 			this.template = template;
 			this.factory = factory;
 		}
 
 		@PostConstruct
 		public void init() {
+			jdbc.update("UPDATE offsets SET offset=? WHERE id=1", 3);
+			jdbc.update("DELETE FROM event WHERE offset >= ?", 3);
 			try (Consumer<String, byte[]> consumer = factory.createConsumer()) {
 				TopicPartition partition = new TopicPartition("input", 0);
 				consumer.assign(Collections.singleton(partition));
