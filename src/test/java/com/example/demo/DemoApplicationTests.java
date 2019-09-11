@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.stream.Stream;
 
@@ -7,6 +8,7 @@ import javax.annotation.PostConstruct;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.containers.KafkaContainer;
@@ -22,8 +24,6 @@ import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.retry.backoff.ExponentialBackOffPolicy;
-import org.springframework.retry.support.RetryTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 
@@ -35,17 +35,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ContextConfiguration(initializers = DemoApplicationTests.Initializer.class)
 public class DemoApplicationTests {
 
-	private RetryTemplate retry = new RetryTemplate();
-
-	{
-		retry.setBackOffPolicy(new ExponentialBackOffPolicy());
-	}
-
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
-		assertThat(retry.execute(context -> output.getErr().contains("kafka_offset=3"))
-				.booleanValue()).isTrue();
-		assertThat(output.getErr()).doesNotContain("kafka_offset=2");
+		String err = Awaitility.await().timeout(Duration.ofSeconds(2))
+				.until(output::getErr, value -> value.contains("kafka_offset=3"));
+		assertThat(err).doesNotContain("kafka_offset=2");
 	}
 
 	@TestConfiguration
