@@ -33,13 +33,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ContextConfiguration(initializers = DemoApplicationTests.Initializer.class)
 public class DemoApplicationTests {
 
-	static {
-		@SuppressWarnings("resource")
-		KafkaContainer kafka = new KafkaContainer().withNetwork(null).withReuse(true);
-		kafka.start();
-		System.setProperty("spring.kafka.bootstrap-servers", kafka.getBootstrapServers());
-	}
-
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
 		assertThat(output.getErr()).doesNotContain("kafka_offset=2");
