@@ -88,6 +88,12 @@
 			<artifactId>awaitility</artifactId>
 			<version>4.0.1</version>
 			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>junit</groupId>
+					<artifactId>junit</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -95,8 +101,8 @@
 			<scope>test</scope>
 			<exclusions>
 				<exclusion>
-					<groupId>junit</groupId>
-					<artifactId>junit</artifactId>
+					<groupId>org.junit.vintage</groupId>
+					<artifactId>junit-vintage-engine</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
