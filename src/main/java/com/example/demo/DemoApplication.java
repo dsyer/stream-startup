@@ -40,7 +40,7 @@ public class DemoApplication {
 		return message -> {
 			Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
 			System.err.println(message);
-			if (offset!=null) {
+			if (offset != null) {
 				service.add(offset, message.getPayload());
 			}
 		};
@@ -63,7 +63,8 @@ public class DemoApplication {
 									Collection<TopicPartition> partitions) {
 								for (TopicPartition partition : partitions) {
 									long offset = config.getOffset();
-									System.err.println("Seeking: " + partition + " to offset=" + offset);
+									System.err.println("Seeking: " + partition
+											+ " to offset=" + offset);
 									consumer.seek(partition, offset);
 								}
 							}
@@ -107,8 +108,14 @@ interface EventRepository extends JpaRepository<Event, Long> {
 @Entity
 class Event {
 
+	enum Type {
+		PENDING, DONE, CANCELLED, UNKNOWN;
+	}
+
 	@Id
 	private Long offset;
+
+	private Type type = Type.PENDING;
 
 	private byte[] value;
 
@@ -128,9 +135,18 @@ class Event {
 		this.value = value;
 	}
 
+	public Type getType() {
+		return this.type;
+	}
+
+	public void setType(Type type) {
+		this.type = type;
+	}
+
 	@Override
 	public String toString() {
-		return "Event [offset=" + offset + ", value=[" + this.value.length + "]]";
+		return "Event [offset=" + offset + ", value=[" + this.value.length + "], type="
+				+ type + "]";
 	}
 
 }
