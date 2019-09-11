@@ -62,7 +62,7 @@ public class DemoApplication {
 									org.apache.kafka.clients.consumer.Consumer<?, ?> consumer,
 									Collection<TopicPartition> partitions) {
 								for (TopicPartition partition : partitions) {
-									long offset = config.getOffset();
+									long offset = config.getOffset(partition.topic(), partition.partition());
 									System.err.println("Seeking: " + partition
 											+ " to offset=" + offset);
 									consumer.seek(partition, offset);
@@ -152,9 +152,7 @@ class Event {
 }
 
 class ConsumerConfiguration {
-	private int partition = 0;
 	private long offset = 0;
-	private String topic = "input";
 	private JdbcTemplate template;
 	private boolean initialized = false;
 
@@ -162,19 +160,9 @@ class ConsumerConfiguration {
 		this.template = new JdbcTemplate(datasSource);
 	}
 
-	public int getPartition() {
-		init();
-		return this.partition;
-	}
-
-	public long getOffset() {
+	public long getOffset(String topic, int partition) {
 		init();
 		return this.offset;
-	}
-
-	public String getTopic() {
-		init();
-		return this.topic;
 	}
 
 	private void init() {
