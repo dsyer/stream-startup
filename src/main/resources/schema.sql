@@ -1,4 +1,6 @@
 CREATE TABLE IF NOT EXISTS offsets (
-  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  offset INT 
+  topic VARCHAR(30),
+  part INT,
+  offset INT,
+  PRIMARY KEY (topic, part)
 ) engine=InnoDB;

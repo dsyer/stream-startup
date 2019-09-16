@@ -6,6 +6,7 @@ import java.util.stream.Stream;
 import javax.annotation.PostConstruct;
 import javax.sql.DataSource;
 
+import com.example.demo.Event.Type;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
 import org.awaitility.Awaitility;
@@ -26,8 +27,12 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.kafka.support.SendResult;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.util.concurrent.ListenableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,35 +43,60 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class DemoApplicationTests {
 
 	@Autowired
-	private JdbcTemplate jdbc;
+	private KafkaClientConfiguration client;
 
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
 		String err = Awaitility.await().until(output::getErr,
 				value -> value.contains("kafka_offset=3"));
 		assertThat(err).doesNotContain("kafka_offset=2");
-		Awaitility.await().until(() -> jdbc.queryForObject("SELECT offset FROM offsets WHERE id=1", Long.class),
-				value -> value > 3);
-		assertThat(jdbc.queryForObject("SELECT max(offset) FROM event", Long.class)).isGreaterThan(3);
+		assertThat(err).doesNotContain("DONE:");
+		Awaitility.await().until(() -> client.offset("input"), value -> value > 3);
+		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(3);
+		client.done(4, "bar1");
+		err = Awaitility.await().until(output::getErr,
+				value -> value.contains("DONE:"));
+		assertThat(client.find(4)).isEqualTo(Event.Type.DONE);
 	}
 
 	@TestConfiguration
 	public static class KafkaClientConfiguration {
 
-		private final KafkaTemplate<String, byte[]> template;
+		private final KafkaTemplate<String, byte[]> kafka;
 		private final ConsumerFactory<String, byte[]> factory;
 		private final JdbcTemplate jdbc;
 
 		public KafkaClientConfiguration(KafkaTemplate<String, byte[]> template,
 				ConsumerFactory<String, byte[]> factory, DataSource datasSource) {
 			this.jdbc = new JdbcTemplate(datasSource);
-			this.template = template;
+			this.kafka = template;
 			this.factory = factory;
+		}
+
+		public Event.Type find(long id) {
+			return this.jdbc.queryForObject("SELECT type FROM event where offset=?", Event.Type.class, id);
+		}
+
+		public ListenableFuture<SendResult<String, byte[]>> done(long id, String value) {
+			return kafka.send(MessageBuilder.withPayload(value.getBytes())
+					.setHeader(DemoApplication.EVENT_ID, id)
+					.setHeader(KafkaHeaders.TOPIC, "done").build());
+		}
+
+		public Long max(Type type) {
+			// TODO: where type=type
+			return jdbc.queryForObject("SELECT max(offset) FROM event", Long.class);
+		}
+
+		public Long offset(String topic) {
+			return jdbc.queryForObject("SELECT max(offset) FROM offsets where topic=?",
+					Long.class, topic);
 		}
 
 		@PostConstruct
 		public void init() {
-			jdbc.update("UPDATE offsets SET offset=? WHERE id=1", 3);
+			System.err.println(jdbc.queryForList("SELECT * FROM offsets"));
+			jdbc.update("UPDATE offsets SET offset=? WHERE topic='input' AND part=0", 2);
 			jdbc.update("DELETE FROM event WHERE offset >= ?", 3);
 			try (Consumer<String, byte[]> consumer = factory.createConsumer()) {
 				TopicPartition partition = new TopicPartition("input", 0);
@@ -77,7 +107,7 @@ public class DemoApplicationTests {
 				}
 			}
 			for (int i = 0; i < 5; i++) {
-				this.template.send("input", ("foo" + i).getBytes());
+				this.kafka.send("input", ("foo" + i).getBytes());
 			}
 		}
 
