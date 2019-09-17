@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.util.TestPropertyValues;
+import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.binder.kafka.streams.InteractiveQueryService;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -69,12 +70,11 @@ public class DemoApplicationTests {
 
 		public KafkaClientConfiguration(KafkaTemplate<String, byte[]> template,
 				ConsumerFactory<String, byte[]> factory,
-				InteractiveQueryService interactiveQueryService, GlobalKTable<Long, Event> events)
+				InteractiveQueryService interactiveQueryService)
 				throws InterruptedException, ExecutionException {
 			this.kafka = template;
 			this.factory = factory;
 			this.interactiveQueryService = interactiveQueryService;
-			this.events = events;
 		}
 
 		public Event.Type find(long id) {
@@ -92,11 +92,20 @@ public class DemoApplicationTests {
 			return 4L;
 		}
 
+		@StreamListener(Events.TABLE)
+		public void bind(GlobalKTable<Long, Event> events) {
+			System.err.println("STORE: " + events.queryableStoreName());
+			this.events = events;
+		}
+
 		public Long offset(String topic) {
 			try {
-				ReadOnlyKeyValueStore<Long, Event> store = interactiveQueryService.getQueryableStore(Events.EVENTS, QueryableStoreTypes.<Long, Event>keyValueStore());
+				System.err.println("QUERY: " + events.queryableStoreName());
+				ReadOnlyKeyValueStore<Long, Event> store = interactiveQueryService
+						.getQueryableStore(events.queryableStoreName(),
+								QueryableStoreTypes.<Long, Event>keyValueStore());
 				Event event = store.get(1L);
-				System.err.println("EVENT: " + event);
+				System.err.println("EVENT: " + store.all().hasNext());
 				return event.getOffset();
 			}
 			catch (Exception e) {

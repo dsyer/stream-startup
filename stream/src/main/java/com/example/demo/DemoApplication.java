@@ -2,7 +2,9 @@ package com.example.demo;
 
 import com.example.demo.DemoApplication.Events;
 import com.example.demo.DemoApplication.Table;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.GlobalKTable;
+import org.apache.kafka.streams.kstream.KStream;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -24,6 +26,7 @@ public class DemoApplication {
 	interface Events {
 		String INPUT = "input";
 		String EVENTS = "events";
+		String OUTPUT = "output";
 		String TABLE = "table";
 		String DONE = "done";
 
@@ -33,14 +36,16 @@ public class DemoApplication {
 		@Output(Events.EVENTS)
 		MessageChannel events();
 
-		@Input(Events.DONE)
-		SubscribableChannel done();
-
 	}
-	
+
 	interface Table {
 		@Input(Events.TABLE)
 		GlobalKTable<Long, Event> events();
+
+		@Input(Events.DONE)
+		KStream<Long, byte[]> done();
+		@Output(Events.OUTPUT)
+		KStream<Long, Event> output();
 	}
 
 	public static final String EVENT_ID = "x_event_id";
@@ -58,26 +63,19 @@ public class DemoApplication {
 			return MessageBuilder
 					.withPayload(
 							new Event(offset, message.getPayload(), Event.Type.PENDING))
-					.setHeader(KafkaHeaders.MESSAGE_KEY, ("" + offset).getBytes()).build();
+					.setHeader(KafkaHeaders.MESSAGE_KEY, ("" + offset).getBytes())
+					.build();
 		}
 		return null;
 	}
 
 	@StreamListener(value = Events.DONE)
-	@SendTo(Events.EVENTS)
-	public Message<?> done(Message<byte[]> message) {
-		System.err.println("DONE: " + message);
-		Long id = (Long) message.getHeaders().get(KafkaHeaders.MESSAGE_KEY);
-		if (id != null) {
-			return MessageBuilder
-					.withPayload(new Event(id, message.getPayload(), Event.Type.DONE))
-					.setHeader(KafkaHeaders.MESSAGE_KEY, ("" + id).getBytes()).build();
-		}
-		else {
-			System.err.println("Error: no event id for incoming data at: offset="
-					+ message.getHeaders().get(KafkaHeaders.OFFSET));
-		}
-		return null;
+	@SendTo(Events.OUTPUT)
+	public KStream<Long, Event> done(KStream<Long, byte[]> messages) {
+		return messages.map((id, payload) -> {
+			System.err.println("DONE: " + id);
+			return new KeyValue<>(id, new Event(id, payload, Event.Type.DONE));
+		});
 	}
 
 }
