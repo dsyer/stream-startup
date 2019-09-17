@@ -1,7 +1,11 @@
 package com.example.demo;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.NoSuchElementException;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.PostConstruct;
 
@@ -9,12 +13,18 @@ import com.example.demo.DemoApplication.Events;
 import com.example.demo.Event.Type;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.GlobalKTable;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.Reducer;
+import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.cloud.stream.annotation.Input;
 import org.testcontainers.containers.KafkaContainer;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +57,7 @@ public class DemoApplicationTests {
 	@Autowired
 	private KafkaClientConfiguration client;
 
+
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
 		String err = Awaitility.await().until(output::getErr,
@@ -57,7 +68,7 @@ public class DemoApplicationTests {
 		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(3);
 		client.done(4, "bar1");
 		err = Awaitility.await().until(output::getErr, value -> value.contains("DONE:"));
-		assertThat(client.find(4)).isEqualTo(Event.Type.DONE);
+		assertThat(client.find(4)).isEqualTo(Type.PENDING);
 	}
 
 	@TestConfiguration
@@ -68,9 +79,11 @@ public class DemoApplicationTests {
 		private InteractiveQueryService interactiveQueryService;
 		private GlobalKTable<Long, Event> events;
 
+		ReadOnlyKeyValueStore<Long, Event> store;
+
 		public KafkaClientConfiguration(KafkaTemplate<String, byte[]> template,
-				ConsumerFactory<String, byte[]> factory,
-				InteractiveQueryService interactiveQueryService)
+										ConsumerFactory<String, byte[]> factory,
+										InteractiveQueryService interactiveQueryService)
 				throws InterruptedException, ExecutionException {
 			this.kafka = template;
 			this.factory = factory;
@@ -82,8 +95,11 @@ public class DemoApplicationTests {
 		}
 
 		public ListenableFuture<SendResult<String, byte[]>> done(long id, String value) {
+			ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+			buffer.putLong(id);
+
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, ("" + id).getBytes())
+					.setHeader(KafkaHeaders.MESSAGE_KEY, buffer.array())
 					.setHeader(KafkaHeaders.TOPIC, "done").build());
 		}
 
@@ -98,15 +114,35 @@ public class DemoApplicationTests {
 			this.events = events;
 		}
 
+		// The following StreamListener is equivalent in functionality to the above one where we are binding to a GlobalKTable.
+		// If you are uncommenting this method, make sure to uncomment the above StreamListener method and
+		// remove the corresponding materializedAs property from application.properties. In addition, you need to
+		// add a new binding as below.
+		//      @Input("stream")
+		//		KStream<Long, Event> stream();
+		// and then provide spring.cloud.stream.bindings.stream.destination=events
+
+//		@StreamListener
+//		public void bind(@Input("stream") KStream<Long, Event> events) {
+//			events.groupByKey().reduce((value1, value2) -> value2, Materialized.as("events-x"));
+//		}
+
 		public Long offset(String topic) {
 			try {
-				System.err.println("QUERY: " + events.queryableStoreName());
-				ReadOnlyKeyValueStore<Long, Event> store = interactiveQueryService
-						.getQueryableStore(events.queryableStoreName(),
-								QueryableStoreTypes.<Long, Event>keyValueStore());
-				Event event = store.get(1L);
-				System.err.println("EVENT: " + store.all().hasNext());
-				return event.getOffset();
+				//System.err.println("QUERY: " + events.queryableStoreName());
+				if (store == null) {
+					store = interactiveQueryService
+							.getQueryableStore("events-x",
+									QueryableStoreTypes.keyValueStore());
+				}
+				//Event event = store.get(1L);
+				final KeyValueIterator<Long, Event> all = store.all();
+
+				Iterable<KeyValue<Long, Event>> t = () -> all;
+				final long max = StreamSupport.stream(t.spliterator(), false).mapToLong(k -> k.key).max()
+						.orElseThrow(NoSuchElementException::new);
+				//System.err.println("EVENT: " + store.all().hasNext());
+				return max;
 			}
 			catch (Exception e) {
 				e.printStackTrace();

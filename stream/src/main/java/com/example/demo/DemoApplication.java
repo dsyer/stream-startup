@@ -63,7 +63,7 @@ public class DemoApplication {
 			return MessageBuilder
 					.withPayload(
 							new Event(offset, message.getPayload(), Event.Type.PENDING))
-					.setHeader(KafkaHeaders.MESSAGE_KEY, ("" + offset).getBytes())
+					.setHeader(KafkaHeaders.MESSAGE_KEY, offset)
 					.build();
 		}
 		return null;
