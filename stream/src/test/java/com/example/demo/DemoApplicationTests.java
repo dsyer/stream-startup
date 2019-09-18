@@ -1,6 +1,5 @@
 package com.example.demo;
 
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.StreamSupport;
@@ -65,14 +64,14 @@ public class DemoApplicationTests {
 	@TestConfiguration
 	public static class KafkaClientConfiguration {
 
-		private final KafkaTemplate<String, byte[]> kafka;
-		private final ConsumerFactory<String, byte[]> factory;
+		private final KafkaTemplate<Long, byte[]> kafka;
+		private final ConsumerFactory<Long, byte[]> factory;
 		private InteractiveQueryService interactiveQueryService;
 
 		ReadOnlyKeyValueStore<Long, Event> store;
 
-		public KafkaClientConfiguration(KafkaTemplate<String, byte[]> template,
-				ConsumerFactory<String, byte[]> factory,
+		public KafkaClientConfiguration(KafkaTemplate<Long, byte[]> template,
+				ConsumerFactory<Long, byte[]> factory,
 				InteractiveQueryService interactiveQueryService)
 				throws InterruptedException, ExecutionException {
 			this.kafka = template;
@@ -98,10 +97,10 @@ public class DemoApplicationTests {
 			}
 		}
 
-		public ListenableFuture<SendResult<String, byte[]>> done(long id, String value) {
-			ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).putLong(id);
+		public ListenableFuture<SendResult<Long, byte[]>> done(long id, String value) {
+			// ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).putLong(id);
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, buffer.array())
+					.setHeader(KafkaHeaders.MESSAGE_KEY, id)
 					.setHeader(KafkaHeaders.TOPIC, Events.DONE).build());
 		}
 
@@ -145,7 +144,7 @@ public class DemoApplicationTests {
 
 		@PostConstruct
 		public void init() {
-			try (Consumer<String, byte[]> consumer = factory.createConsumer()) {
+			try (Consumer<Long, byte[]> consumer = factory.createConsumer()) {
 				TopicPartition partition = new TopicPartition("input", 0);
 				consumer.assign(Collections.singleton(partition));
 				if (consumer.position(partition) > 2) {
