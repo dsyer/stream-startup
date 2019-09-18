@@ -47,7 +47,7 @@ public class DemoApplication {
 	interface Table {
 		String TMP = "tmp";
 
-		@Output(TMP)
+		@Input(TMP)
 		KStream<Long, Event> tmp();
 	}
 
