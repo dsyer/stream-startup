@@ -7,7 +7,6 @@ import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
-
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.stream.annotation.EnableBinding;
@@ -78,7 +77,7 @@ public class DemoApplication {
 	@StreamListener(value = Events.DONE)
 	@SendTo(Events.EVENTS)
 	public Message<?> done(Message<byte[]> message) {
-		Long id = (Long) message.getHeaders().get(KafkaHeaders.MESSAGE_KEY);
+		Long id = (Long) message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);;
 		System.err.println("PENDING: " + message);
 		System.err.println("DONE: " + id);
 		Type type = events.find(id);

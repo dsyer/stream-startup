@@ -59,7 +59,7 @@ public class DemoApplicationTests {
 		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(3);
 		client.done(4, "bar1");
 		err = Awaitility.await().until(output::getErr, value -> value.contains("DONE:"));
-		assertThat(client.find(4)).isEqualTo(Type.PENDING);
+		assertThat(client.find(4)).isEqualTo(Type.DONE);
 	}
 
 	@TestConfiguration
@@ -99,9 +99,9 @@ public class DemoApplicationTests {
 		}
 
 		public ListenableFuture<SendResult<Long, byte[]>> done(long id, String value) {
-			 ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).putLong(id);
+			 //ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).putLong(id);
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, buffer.array())
+					.setHeader(KafkaHeaders.MESSAGE_KEY, id)
 					.setHeader(KafkaHeaders.TOPIC, Events.DONE).build());
 		}
 
