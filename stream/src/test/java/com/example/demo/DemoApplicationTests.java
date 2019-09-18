@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.StreamSupport;
@@ -98,9 +99,9 @@ public class DemoApplicationTests {
 		}
 
 		public ListenableFuture<SendResult<Long, byte[]>> done(long id, String value) {
-			// ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).putLong(id);
+			 ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).putLong(id);
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, id)
+					.setHeader(KafkaHeaders.MESSAGE_KEY, buffer.array())
 					.setHeader(KafkaHeaders.TOPIC, Events.DONE).build());
 		}
 
