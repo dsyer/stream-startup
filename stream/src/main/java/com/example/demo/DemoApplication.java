@@ -1,5 +1,7 @@
 package com.example.demo;
 
+import java.nio.ByteBuffer;
+
 import com.example.demo.DemoApplication.Events;
 import com.example.demo.DemoApplication.Table;
 import com.example.demo.Event.Type;
@@ -78,8 +80,8 @@ public class DemoApplication {
 	@StreamListener(value = Events.DONE)
 	@SendTo(Events.EVENTS)
 	public Message<?> done(Message<byte[]> message) {
-		Long id = (Long) message.getHeaders().get(KafkaHeaders.MESSAGE_KEY);
-		System.err.println("PENDING: " + message);
+		System.err.println("DONE: " + message);
+		Long id = getLongHeader(message);
 		System.err.println("DONE: " + id);
 		Type type = events.find(id);
 		if (type != Type.PENDING) {
@@ -89,6 +91,22 @@ public class DemoApplication {
 		return MessageBuilder
 				.withPayload(new Event(id, message.getPayload(), Event.Type.DONE))
 				.setHeader(KafkaHeaders.MESSAGE_KEY, id).build();
+	}
+
+	private Long getLongHeader(Message<byte[]> message) {
+		Object key = message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
+		if (key instanceof Long) {
+			return (Long) key;
+		}
+		if (key instanceof byte[]) {
+			ByteBuffer buffer = ByteBuffer.wrap((byte[])key);
+			return (Long) buffer.asLongBuffer().get();
+		}
+		if (key instanceof ByteBuffer) {
+			ByteBuffer buffer = (ByteBuffer)key;
+			return (Long) buffer.asLongBuffer().get();
+		}
+		return -1L;
 	}
 
 	@StreamListener
