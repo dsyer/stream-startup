@@ -100,6 +100,7 @@ public class DemoApplicationTests {
 
 		@Transactional
 		public ListenableFuture<SendResult<Long, byte[]>> done(long id, String value) {
+			System.err.println("Generating data: " + id);
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
 					.setHeader(KafkaHeaders.MESSAGE_KEY, id)
 					.setHeader(KafkaHeaders.TOPIC, Events.DONE).build());
@@ -166,7 +167,10 @@ public class DemoApplicationTests {
 		private static KafkaContainer kafka;
 
 		static {
-			kafka = new KafkaContainer().withNetwork(null).withReuse(true);
+			kafka = new KafkaContainer()
+					.withEnv("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
+					.withEnv("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1").withNetwork(null)
+					.withReuse(true);
 			kafka.start();
 		}
 
