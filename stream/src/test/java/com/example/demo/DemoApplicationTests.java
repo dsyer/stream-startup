@@ -35,6 +35,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.concurrent.ListenableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -97,6 +98,7 @@ public class DemoApplicationTests {
 			}
 		}
 
+		@Transactional
 		public ListenableFuture<SendResult<Long, byte[]>> done(long id, String value) {
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
 					.setHeader(KafkaHeaders.MESSAGE_KEY, id)
