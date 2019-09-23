@@ -53,7 +53,6 @@ public class DemoApplicationTests {
 	public void contextLoads(CapturedOutput output) throws Exception {
 		String err = Awaitility.await().until(output::getErr,
 				value -> value.contains("kafka_offset=3"));
-		// assertThat(err).doesNotContain("kafka_offset=2");
 		assertThat(err).doesNotContain("DONE:");
 		Awaitility.await().until(() -> client.max(), value -> value > 3);
 		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(3);
