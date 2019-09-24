@@ -52,7 +52,7 @@ public class DemoApplicationTests {
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
 		String err = Awaitility.await().until(output::getErr,
-				value -> value.contains("kafka_offset=3"));
+				value -> value.contains("kafka_offset=4"));
 		assertThat(err).doesNotContain("DONE:");
 		Awaitility.await().until(() -> client.max(), value -> value > 3);
 		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(3);
@@ -138,7 +138,6 @@ public class DemoApplicationTests {
 				return max;
 			}
 			catch (Exception e) {
-				e.printStackTrace();
 				return -1L;
 			}
 		}
@@ -153,7 +152,7 @@ public class DemoApplicationTests {
 					return;
 				}
 			}
-			for (int i = 0; i < 5; i++) {
+			for (long i = 0; i < 5; i++) {
 				this.kafka.send("input", ("foo" + i).getBytes());
 			}
 		}
@@ -169,7 +168,7 @@ public class DemoApplicationTests {
 			kafka = new KafkaContainer()
 					.withEnv("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
 					.withEnv("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1").withNetwork(null)
-					.withReuse(true);
+					;// .withReuse(true);
 			kafka.start();
 		}
 

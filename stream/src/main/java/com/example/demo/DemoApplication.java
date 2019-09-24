@@ -3,7 +3,7 @@ package com.example.demo;
 import java.nio.ByteBuffer;
 
 import com.example.demo.DemoApplication.Events;
-import com.example.demo.DemoApplication.Table;
+import com.example.demo.DemoApplication.Tables;
 import com.example.demo.Event.Type;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Materialized;
@@ -26,17 +26,22 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 
 @SpringBootApplication(proxyBeanMethods = false)
-@EnableBinding({ Events.class, Table.class })
+@EnableBinding({ Events.class, Tables.class })
 public class DemoApplication {
 
 	interface Events {
 		String INPUT = "input";
+		String AUDIT = "audit";
+		String INPUTSTORE = "input-store";
 		String EVENTS = "events";
 		String EVENTSTORE = "event-store";
 		String DONE = "done";
 
 		@Input(INPUT)
 		SubscribableChannel input();
+
+		@Output(AUDIT)
+		MessageChannel audit();
 
 		@Output(EVENTS)
 		MessageChannel events();
@@ -46,17 +51,28 @@ public class DemoApplication {
 
 	}
 
-	interface Table {
-		String TMP = "tmp";
+	interface Tables {
+		String EVENTS = "tmp-events";
+		String INPUT = "tmp-input";
 
-		@Input(TMP)
-		KStream<Long, Event> tmp();
+		@Input(EVENTS)
+		KStream<Long, Event> eventsTable();
+
+		@Input(INPUT)
+		// TODO: better byte[]
+		KStream<Long, byte[]> InputTable();
 	}
 
-	private final EventService events;
+	private final EventService service;
 
-	public DemoApplication(EventService events) {
+	private final Events events;
+
+	private final InputService input;
+
+	public DemoApplication(EventService service, Events events, InputService input) {
+		this.service = service;
 		this.events = events;
+		this.input = input;
 	}
 
 	public static void main(String[] args) throws Exception {
@@ -64,17 +80,23 @@ public class DemoApplication {
 	}
 
 	@StreamListener(value = Events.INPUT)
-	@SendTo(Events.EVENTS)
-	public Message<?> input(Message<byte[]> message) {
-		Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
+	public void input(Message<byte[]> message) {
 		System.err.println("PENDING: " + message);
+		Object key = message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
+		if (input.exists(key)) {
+			System.err.println("EXISTS: " + key);
+			return;
+		}
+		Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
 		if (offset != null) {
-			return MessageBuilder
+			System.err.println("SENDING: " + offset + ", " + key);
+			events.audit().send(MessageBuilder.withPayload(message.getPayload())
+					.setHeader(KafkaHeaders.MESSAGE_KEY, offset).build());
+			events.events().send(MessageBuilder
 					.withPayload(
 							new Event(offset, message.getPayload(), Event.Type.PENDING))
-					.setHeader(KafkaHeaders.MESSAGE_KEY, offset).build();
+					.setHeader(KafkaHeaders.MESSAGE_KEY, offset).build());
 		}
-		return null;
 	}
 
 	@StreamListener(value = Events.DONE)
@@ -83,7 +105,7 @@ public class DemoApplication {
 		System.err.println("DONE: " + message);
 		Long id = getLongHeader(message);
 		System.err.println("DONE: " + id);
-		Type type = events.find(id);
+		Type type = service.find(id);
 		if (type != Type.PENDING) {
 			System.err.println("Not processed: " + id + " with type=" + type);
 			return null;
@@ -99,20 +121,22 @@ public class DemoApplication {
 			return (Long) key;
 		}
 		if (key instanceof byte[]) {
-			ByteBuffer buffer = ByteBuffer.wrap((byte[])key);
+			ByteBuffer buffer = ByteBuffer.wrap((byte[]) key);
 			return (Long) buffer.asLongBuffer().get();
 		}
 		if (key instanceof ByteBuffer) {
-			ByteBuffer buffer = (ByteBuffer)key;
+			ByteBuffer buffer = (ByteBuffer) key;
 			return (Long) buffer.asLongBuffer().get();
 		}
 		return -1L;
 	}
 
 	@StreamListener
-	public void bind(@Input(Table.TMP) KStream<Long, Event> events) {
+	public void bind(@Input(Tables.EVENTS) KStream<Long, Event> events,
+			@Input(Tables.INPUT) KStream<Long, byte[]> input) {
 		events.groupByKey().reduce((id, event) -> event,
 				Materialized.as(Events.EVENTSTORE));
+		input.groupByKey().reduce((id, data) -> data, Materialized.as(Events.INPUTSTORE));
 	}
 
 }
@@ -141,6 +165,43 @@ class EventService {
 		catch (Exception e) {
 			e.printStackTrace();
 			return Event.Type.UNKNOWN;
+		}
+	}
+
+}
+
+@Component
+class InputService {
+	private final InteractiveQueryService interactiveQueryService;
+	private ReadOnlyKeyValueStore<byte[], byte[]> store;
+
+	public InputService(InteractiveQueryService interactiveQueryService) {
+		this.interactiveQueryService = interactiveQueryService;
+	}
+
+	public boolean exists(Object id) {
+		while (true) {
+			try {
+				if (store == null) {
+					store = interactiveQueryService.getQueryableStore(Events.INPUTSTORE,
+							QueryableStoreTypes.keyValueStore());
+				}
+				if (id instanceof byte[]) {
+					byte[] key = (byte[]) id;
+					byte[] data = store.get(key);
+					if (data == null) {
+						return false;
+					}
+					return true;
+				}
+			}
+			catch (IllegalStateException e) {
+				throw e;
+			}
+			catch (Exception e) {
+				e.printStackTrace();
+				return false;
+			}
 		}
 	}
 
