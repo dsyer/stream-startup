@@ -89,14 +89,23 @@ public class DemoApplication {
 		}
 		Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
 		if (offset != null) {
+			final byte[] longBytes = getBytes(offset);
+
 			System.err.println("SENDING: " + offset + ", " + key);
 			events.audit().send(MessageBuilder.withPayload(message.getPayload())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, offset).build());
+					.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes).build());
 			events.events().send(MessageBuilder
 					.withPayload(
 							new Event(offset, message.getPayload(), Event.Type.PENDING))
-					.setHeader(KafkaHeaders.MESSAGE_KEY, offset).build());
+					.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes).build());
 		}
+
+	}
+
+	static byte[] getBytes(Long offset) {
+		ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+		buffer.putLong(offset);
+		return buffer.array();
 	}
 
 	@StreamListener(value = Events.DONE)
@@ -110,9 +119,10 @@ public class DemoApplication {
 			System.err.println("Not processed: " + id + " with type=" + type);
 			return null;
 		}
+		final byte[] longBytes = getBytes(id);
 		return MessageBuilder
 				.withPayload(new Event(id, message.getPayload(), Event.Type.DONE))
-				.setHeader(KafkaHeaders.MESSAGE_KEY, id).build();
+				.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes).build();
 	}
 
 	private Long getLongHeader(Message<byte[]> message) {

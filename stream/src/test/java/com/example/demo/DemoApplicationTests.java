@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.StreamSupport;
@@ -65,15 +66,17 @@ public class DemoApplicationTests {
 	public static class KafkaClientConfiguration {
 
 		private final KafkaTemplate<Long, byte[]> kafka;
+		private final KafkaTemplate<byte[], byte[]> kafka1;
 		private final ConsumerFactory<Long, byte[]> factory;
 		private InteractiveQueryService interactiveQueryService;
 
 		ReadOnlyKeyValueStore<Long, Event> store;
 
-		public KafkaClientConfiguration(KafkaTemplate<Long, byte[]> template,
-				ConsumerFactory<Long, byte[]> factory,
+		public KafkaClientConfiguration(KafkaTemplate<Long, byte[]> template, KafkaTemplate<byte[], byte[]> kafka1,
+										ConsumerFactory<Long, byte[]> factory,
 				InteractiveQueryService interactiveQueryService)
 				throws InterruptedException, ExecutionException {
+			this.kafka1 = kafka1;
 			this.kafka = template;
 			this.factory = factory;
 			this.interactiveQueryService = interactiveQueryService;
@@ -98,10 +101,12 @@ public class DemoApplicationTests {
 		}
 
 		@Transactional
-		public ListenableFuture<SendResult<Long, byte[]>> done(long id, String value) {
+		public ListenableFuture<SendResult<byte[], byte[]>> done(long id, String value) {
 			System.err.println("Generating data: " + id);
-			return kafka.send(MessageBuilder.withPayload(value.getBytes())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, id)
+
+			final byte[] longBytes = DemoApplication.getBytes(id);
+			return kafka1.send(MessageBuilder.withPayload(value.getBytes())
+					.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes)
 					.setHeader(KafkaHeaders.TOPIC, Events.DONE).build());
 		}
 
