@@ -173,35 +173,38 @@ class EventService {
 @Component
 class InputService {
 	private final InteractiveQueryService interactiveQueryService;
-	private ReadOnlyKeyValueStore<byte[], byte[]> store;
+	private ReadOnlyKeyValueStore<Long, byte[]> store;
 
 	public InputService(InteractiveQueryService interactiveQueryService) {
 		this.interactiveQueryService = interactiveQueryService;
 	}
 
 	public boolean exists(Object id) {
-		while (true) {
-			try {
-				if (store == null) {
-					store = interactiveQueryService.getQueryableStore(Events.INPUTSTORE,
-							QueryableStoreTypes.keyValueStore());
-				}
-				if (id instanceof byte[]) {
-					byte[] key = (byte[]) id;
-					byte[] data = store.get(key);
-					if (data == null) {
-						return false;
-					}
-					return true;
-				}
+		try {
+			if (store == null) {
+				store = interactiveQueryService.getQueryableStore(Events.INPUTSTORE,
+						QueryableStoreTypes.keyValueStore());
 			}
-			catch (IllegalStateException e) {
-				throw e;
-			}
-			catch (Exception e) {
-				e.printStackTrace();
+			if (id == null) {
 				return false;
 			}
+			if (id instanceof Long) {
+				byte[] data = store.get((Long) id);
+				if (data == null) {
+					return false;
+				}
+				return true;
+			}
+			else {
+				throw new IllegalStateException("Wrong key type: " + id);
+			}
+		}
+		catch (IllegalStateException e) {
+			throw e;
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+			return false;
 		}
 	}
 
