@@ -20,36 +20,25 @@ import org.springframework.cloud.stream.binder.kafka.streams.InteractiveQuerySer
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
-import org.springframework.messaging.SubscribableChannel;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Base64Utils;
 
 @SpringBootApplication(proxyBeanMethods = false)
-@EnableBinding({ Events.class, Tables.class })
+@EnableBinding({ Events.class, Tables.class, Inputs.class })
 public class DemoApplication {
 
 	interface Events {
-		String INPUT = "input";
 		String EVENTS = "events";
-		String EVENTSTORE = "event-store";
-		String DONE = "done";
-
-		@Input(INPUT)
-		SubscribableChannel input();
-
 		@Output(EVENTS)
 		MessageChannel events();
-
-		@Input(DONE)
-		SubscribableChannel done();
 
 	}
 
 	interface Tables {
 		String EVENTS = "tmp-events";
-
+		String EVENTSTORE = "event-store";
 		@Input(EVENTS)
 		KStream<Long, Event> eventsTable();
 
@@ -72,7 +61,7 @@ public class DemoApplication {
 		new SpringApplicationBuilder(DemoApplication.class).run(args);
 	}
 
-	@StreamListener(value = Events.INPUT)
+	@StreamListener(value = Inputs.PENDING)
 	@SendTo(Events.EVENTS)
 	public Message<?> input(Message<byte[]> message) {
 		byte[] key = extractor.extract(message);
@@ -98,7 +87,7 @@ public class DemoApplication {
 		return buffer.array();
 	}
 
-	@StreamListener(value = Events.DONE)
+	@StreamListener(value = Inputs.DONE)
 	@SendTo(Events.EVENTS)
 	public Message<?> done(Message<byte[]> message) {
 		System.err.println("DONE: " + message);
@@ -138,7 +127,7 @@ public class DemoApplication {
 	@StreamListener
 	public void bind(@Input(Tables.EVENTS) KStream<byte[], Event> events) {
 		events.groupByKey().reduce((id, event) -> event,
-				Materialized.as(Events.EVENTSTORE));
+				Materialized.as(Tables.EVENTSTORE));
 	}
 
 }
@@ -155,7 +144,7 @@ class EventService {
 	public Event find(byte[] id) {
 		try {
 			if (store == null) {
-				store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
+				store = interactiveQueryService.getQueryableStore(Tables.EVENTSTORE,
 						QueryableStoreTypes.keyValueStore());
 			}
 			Event event = store.get(id);
@@ -184,7 +173,7 @@ class AuditService {
 	public boolean exists(Object id) {
 		try {
 			if (store == null) {
-				store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
+				store = interactiveQueryService.getQueryableStore(Tables.EVENTSTORE,
 						QueryableStoreTypes.keyValueStore());
 			}
 			if (id == null) {

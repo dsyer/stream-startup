@@ -8,6 +8,7 @@ import java.util.stream.StreamSupport;
 import javax.annotation.PostConstruct;
 
 import com.example.demo.DemoApplication.Events;
+import com.example.demo.DemoApplication.Tables;
 import com.example.demo.Event.Type;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -90,7 +91,7 @@ public class DemoApplicationTests {
 		public Event.Type find(long id) {
 			try {
 				if (store == null) {
-					store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
+					store = interactiveQueryService.getQueryableStore(Tables.EVENTSTORE,
 							QueryableStoreTypes.keyValueStore());
 				}
 				final KeyValueIterator<byte[], Event> all = store.all();
@@ -113,13 +114,13 @@ public class DemoApplicationTests {
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
 					.setHeader(KafkaHeaders.MESSAGE_KEY,
 							DigestUtils.md5Digest(("foo" + id).getBytes()))
-					.setHeader(KafkaHeaders.TOPIC, Events.DONE).build());
+					.setHeader(KafkaHeaders.TOPIC, Inputs.DONE).build());
 		}
 
 		public Long max(Type type) {
 			try {
 				if (store == null) {
-					store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
+					store = interactiveQueryService.getQueryableStore(Tables.EVENTSTORE,
 							QueryableStoreTypes.keyValueStore());
 				}
 				final KeyValueIterator<byte[], Event> all = store.all();
@@ -139,7 +140,7 @@ public class DemoApplicationTests {
 		public Long max() {
 			try {
 				if (store == null) {
-					store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
+					store = interactiveQueryService.getQueryableStore(Tables.EVENTSTORE,
 							QueryableStoreTypes.keyValueStore());
 				}
 				final KeyValueIterator<byte[], Event> all = store.all();
@@ -159,7 +160,7 @@ public class DemoApplicationTests {
 			// TODO: this isn't working yet. Need to enable on the server.
 			client.deleteTopics(Arrays.asList(Events.EVENTS));
 			try (Consumer<byte[], byte[]> consumer = factory.createConsumer()) {
-				TopicPartition partition = new TopicPartition("input", 0);
+				TopicPartition partition = new TopicPartition(Inputs.PENDING, 0);
 				consumer.assign(Collections.singleton(partition));
 				if (consumer.position(partition) > 2) {
 					System.err.println("No need to seed logs");
@@ -167,7 +168,7 @@ public class DemoApplicationTests {
 				}
 			}
 			for (long i = 0; i < 5; i++) {
-				this.kafka.send("input", ("foo" + (i == 3 ? 2 : i)).getBytes());
+				this.kafka.send(Inputs.PENDING, ("foo" + (i == 3 ? 2 : i)).getBytes());
 			}
 		}
 
