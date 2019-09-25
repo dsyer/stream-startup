@@ -31,6 +31,7 @@ public class DemoApplication {
 
 	interface Events {
 		String EVENTS = "events";
+
 		@Output(EVENTS)
 		MessageChannel events();
 
@@ -39,6 +40,7 @@ public class DemoApplication {
 	interface Tables {
 		String EVENTS = "tmp-events";
 		String EVENTSTORE = "event-store";
+
 		@Input(EVENTS)
 		KStream<Long, Event> eventsTable();
 
@@ -46,14 +48,10 @@ public class DemoApplication {
 
 	private final EventService service;
 
-	private final AuditService audit;
-
 	private final KeyExtractor extractor;
 
-	public DemoApplication(EventService service, AuditService audit,
-			KeyExtractor extractor) {
+	public DemoApplication(EventService service, KeyExtractor extractor) {
 		this.service = service;
-		this.audit = audit;
 		this.extractor = extractor;
 	}
 
@@ -65,7 +63,7 @@ public class DemoApplication {
 	@SendTo(Events.EVENTS)
 	public Message<?> input(Message<byte[]> message) {
 		byte[] key = extractor.extract(message);
-		if (audit.exists(key)) {
+		if (service.exists(key)) {
 			System.err.println("PENDING: " + message);
 			System.err.println("EXISTS: " + Base64Utils.encodeToString(key));
 			return null;
@@ -159,44 +157,8 @@ class EventService {
 		}
 	}
 
-}
-
-@Component
-class AuditService {
-	private final InteractiveQueryService interactiveQueryService;
-	private ReadOnlyKeyValueStore<byte[], Event> store;
-
-	public AuditService(InteractiveQueryService interactiveQueryService) {
-		this.interactiveQueryService = interactiveQueryService;
-	}
-
-	public boolean exists(Object id) {
-		try {
-			if (store == null) {
-				store = interactiveQueryService.getQueryableStore(Tables.EVENTSTORE,
-						QueryableStoreTypes.keyValueStore());
-			}
-			if (id == null) {
-				return false;
-			}
-			if (id instanceof byte[]) {
-				Event data = store.get((byte[]) id);
-				if (data == null) {
-					return false;
-				}
-				return true;
-			}
-			else {
-				throw new IllegalStateException("Wrong key type: " + id);
-			}
-		}
-		catch (IllegalStateException e) {
-			throw e;
-		}
-		catch (Exception e) {
-			e.printStackTrace();
-			return false;
-		}
+	public boolean exists(byte[] id) {
+		return find(id) != Event.UNKNOWN;
 	}
 
 }
