@@ -60,7 +60,7 @@ public class DemoApplication {
 
 		@Input(INPUT)
 		// TODO: better byte[]
-		KStream<Long, byte[]> InputTable();
+		KStream<byte[], byte[]> InputTable();
 	}
 
 	private final EventService service;
@@ -143,7 +143,7 @@ public class DemoApplication {
 
 	@StreamListener
 	public void bind(@Input(Tables.EVENTS) KStream<Long, Event> events,
-			@Input(Tables.INPUT) KStream<Long, byte[]> input) {
+			@Input(Tables.INPUT) KStream<byte[], byte[]> input) {
 		events.groupByKey().reduce((id, event) -> event,
 				Materialized.as(Events.EVENTSTORE));
 		input.groupByKey().reduce((id, data) -> data, Materialized.as(Events.INPUTSTORE));
@@ -183,7 +183,7 @@ class EventService {
 @Component
 class InputService {
 	private final InteractiveQueryService interactiveQueryService;
-	private ReadOnlyKeyValueStore<Long, byte[]> store;
+	private ReadOnlyKeyValueStore<byte[], byte[]> store;
 
 	public InputService(InteractiveQueryService interactiveQueryService) {
 		this.interactiveQueryService = interactiveQueryService;
@@ -198,8 +198,8 @@ class InputService {
 			if (id == null) {
 				return false;
 			}
-			if (id instanceof Long) {
-				byte[] data = store.get((Long) id);
+			if (id instanceof byte[]) {
+				byte[] data = store.get((byte[]) id);
 				if (data == null) {
 					return false;
 				}
