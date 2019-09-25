@@ -32,7 +32,7 @@ public class DemoApplication {
 	interface Events {
 		String INPUT = "input";
 		String AUDIT = "audit";
-		String INPUTSTORE = "input-store";
+		String AUDITSTORE = "audit-store";
 		String EVENTS = "events";
 		String EVENTSTORE = "event-store";
 		String DONE = "done";
@@ -53,7 +53,7 @@ public class DemoApplication {
 
 	interface Tables {
 		String EVENTS = "tmp-events";
-		String AUDIT = "tmp-input";
+		String AUDIT = "tmp-audit";
 
 		@Input(EVENTS)
 		KStream<Long, Event> eventsTable();
@@ -150,7 +150,7 @@ public class DemoApplication {
 			@Input(Tables.AUDIT) KStream<byte[], byte[]> input) {
 		events.groupByKey().reduce((id, event) -> event,
 				Materialized.as(Events.EVENTSTORE));
-		input.groupByKey().reduce((id, data) -> data, Materialized.as(Events.INPUTSTORE));
+		input.groupByKey().reduce((id, data) -> data, Materialized.as(Events.AUDITSTORE));
 	}
 
 }
@@ -196,7 +196,7 @@ class AuditService {
 	public boolean exists(Object id) {
 		try {
 			if (store == null) {
-				store = interactiveQueryService.getQueryableStore(Events.INPUTSTORE,
+				store = interactiveQueryService.getQueryableStore(Events.AUDITSTORE,
 						QueryableStoreTypes.keyValueStore());
 			}
 			if (id == null) {
