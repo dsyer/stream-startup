@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.StreamSupport;
@@ -8,6 +9,7 @@ import javax.annotation.PostConstruct;
 
 import com.example.demo.DemoApplication.Events;
 import com.example.demo.Event.Type;
+import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.streams.KeyValue;
@@ -29,6 +31,7 @@ import org.springframework.cloud.stream.binder.kafka.streams.InteractiveQuerySer
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.kafka.support.SendResult;
@@ -64,16 +67,18 @@ public class DemoApplicationTests {
 	@TestConfiguration
 	public static class KafkaClientConfiguration {
 
+		private final KafkaAdmin admin;
 		private final KafkaTemplate<byte[], byte[]> kafka;
 		private final ConsumerFactory<Long, byte[]> factory;
 		private InteractiveQueryService interactiveQueryService;
 
 		ReadOnlyKeyValueStore<Long, Event> store;
 
-		public KafkaClientConfiguration(KafkaTemplate<byte[], byte[]> kafka,
+		public KafkaClientConfiguration(KafkaAdmin admin, KafkaTemplate<byte[], byte[]> kafka,
 										ConsumerFactory<Long, byte[]> factory,
 				InteractiveQueryService interactiveQueryService)
 				throws InterruptedException, ExecutionException {
+			this.admin = admin;
 			this.kafka = kafka;
 			this.factory = factory;
 			this.interactiveQueryService = interactiveQueryService;
@@ -146,6 +151,8 @@ public class DemoApplicationTests {
 
 		@PostConstruct
 		public void init() {
+			AdminClient client = AdminClient.create(admin.getConfig());
+			client.deleteTopics(Arrays.asList(Events.AUDIT));
 			try (Consumer<Long, byte[]> consumer = factory.createConsumer()) {
 				TopicPartition partition = new TopicPartition("input", 0);
 				consumer.assign(Collections.singleton(partition));
@@ -170,7 +177,7 @@ public class DemoApplicationTests {
 			kafka = new KafkaContainer()
 					.withEnv("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
 					.withEnv("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1").withNetwork(null)
-					;// .withReuse(true);
+					.withReuse(true);
 			kafka.start();
 		}
 
