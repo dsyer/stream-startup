@@ -69,10 +69,13 @@ public class DemoApplication {
 
 	private final AuditService audit;
 
-	public DemoApplication(EventService service, Events events, AuditService audit) {
+	private final KeyExtractor extractor;
+
+	public DemoApplication(EventService service, AuditService audit, KeyExtractor extractor, Events events) {
 		this.service = service;
-		this.events = events;
 		this.audit = audit;
+		this.extractor = extractor;
+		this.events = events;
 	}
 
 	public static void main(String[] args) throws Exception {
@@ -82,7 +85,7 @@ public class DemoApplication {
 	@StreamListener(value = Events.INPUT)
 	public void input(Message<byte[]> message) {
 		System.err.println("PENDING: " + message);
-		Object key = message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
+		byte[] key = extractIdentifier(message);
 		if (audit.exists(key)) {
 			System.err.println("EXISTS: " + key);
 			return;
@@ -100,6 +103,10 @@ public class DemoApplication {
 					.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes).build());
 		}
 
+	}
+
+	private byte[] extractIdentifier(Message<byte[]> message) {
+		return extractor.extract(message);
 	}
 
 	static byte[] getBytes(Long offset) {
@@ -127,7 +134,7 @@ public class DemoApplication {
 
 	private Long getLongHeader(Message<byte[]> message) {
 		// Postel's Law: be conservative in what you accept
-		Object key = message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
+		Object key = extractIdentifier(message);
 		if (key instanceof Long) {
 			System.err.println("LONG: " + key);
 			return (Long) key;
