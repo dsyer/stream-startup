@@ -53,26 +53,26 @@ public class DemoApplication {
 
 	interface Tables {
 		String EVENTS = "tmp-events";
-		String INPUT = "tmp-input";
+		String AUDIT = "tmp-input";
 
 		@Input(EVENTS)
 		KStream<Long, Event> eventsTable();
 
-		@Input(INPUT)
+		@Input(AUDIT)
 		// TODO: better byte[]
-		KStream<byte[], byte[]> InputTable();
+		KStream<byte[], byte[]> auditTable();
 	}
 
 	private final EventService service;
 
 	private final Events events;
 
-	private final InputService input;
+	private final AuditService audit;
 
-	public DemoApplication(EventService service, Events events, InputService input) {
+	public DemoApplication(EventService service, Events events, AuditService audit) {
 		this.service = service;
 		this.events = events;
-		this.input = input;
+		this.audit = audit;
 	}
 
 	public static void main(String[] args) throws Exception {
@@ -83,7 +83,7 @@ public class DemoApplication {
 	public void input(Message<byte[]> message) {
 		System.err.println("PENDING: " + message);
 		Object key = message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
-		if (input.exists(key)) {
+		if (audit.exists(key)) {
 			System.err.println("EXISTS: " + key);
 			return;
 		}
@@ -147,7 +147,7 @@ public class DemoApplication {
 
 	@StreamListener
 	public void bind(@Input(Tables.EVENTS) KStream<Long, Event> events,
-			@Input(Tables.INPUT) KStream<byte[], byte[]> input) {
+			@Input(Tables.AUDIT) KStream<byte[], byte[]> input) {
 		events.groupByKey().reduce((id, event) -> event,
 				Materialized.as(Events.EVENTSTORE));
 		input.groupByKey().reduce((id, data) -> data, Materialized.as(Events.INPUTSTORE));
@@ -185,11 +185,11 @@ class EventService {
 }
 
 @Component
-class InputService {
+class AuditService {
 	private final InteractiveQueryService interactiveQueryService;
 	private ReadOnlyKeyValueStore<byte[], byte[]> store;
 
-	public InputService(InteractiveQueryService interactiveQueryService) {
+	public AuditService(InteractiveQueryService interactiveQueryService) {
 		this.interactiveQueryService = interactiveQueryService;
 	}
 
