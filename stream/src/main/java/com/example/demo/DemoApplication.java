@@ -57,17 +57,15 @@ public class DemoApplication {
 
 	private final EventService service;
 
-	private final Events events;
-
 	private final AuditService audit;
 
 	private final KeyExtractor extractor;
 
-	public DemoApplication(EventService service, AuditService audit, KeyExtractor extractor, Events events) {
+	public DemoApplication(EventService service, AuditService audit,
+			KeyExtractor extractor) {
 		this.service = service;
 		this.audit = audit;
 		this.extractor = extractor;
-		this.events = events;
 	}
 
 	public static void main(String[] args) throws Exception {
@@ -75,21 +73,23 @@ public class DemoApplication {
 	}
 
 	@StreamListener(value = Events.INPUT)
-	public void input(Message<byte[]> message) {
-		System.err.println("PENDING: " + message);
+	@SendTo(Events.EVENTS)
+	public Message<?> input(Message<byte[]> message) {
 		byte[] key = extractor.extract(message);
 		if (audit.exists(key)) {
+			System.err.println("PENDING: " + message);
 			System.err.println("EXISTS: " + Base64Utils.encodeToString(key));
-			return;
+			return null;
 		}
+		System.err.println("PENDING: " + message);
 		Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
 		if (offset != null) {
-			System.err.println("SENDING: " + offset + ", " + (key == null ? key : Base64Utils.encodeToString(key)));
-			events.events().send(MessageBuilder
-					.withPayload(
-							new Event(offset, key, Event.Type.PENDING))
-					.setHeader(KafkaHeaders.MESSAGE_KEY, key).build());
+			System.err.println("SENDING: " + offset + ", "
+					+ (key == null ? key : Base64Utils.encodeToString(key)));
+			return MessageBuilder.withPayload(new Event(offset, key, Event.Type.PENDING))
+					.setHeader(KafkaHeaders.MESSAGE_KEY, key).build();
 		}
+		return null;
 	}
 
 	static byte[] getBytes(Long offset) {
@@ -106,7 +106,8 @@ public class DemoApplication {
 		System.err.println("DONE: " + Base64Utils.encodeToString(id));
 		Event type = service.find(id);
 		if (type.getType() != Type.PENDING) {
-			System.err.println("Not processed: " + Base64Utils.encodeToString(id) + " with type=" + type);
+			System.err.println("Not processed: " + Base64Utils.encodeToString(id)
+					+ " with type=" + type);
 			return null;
 		}
 		return MessageBuilder
@@ -122,7 +123,8 @@ public class DemoApplication {
 			return getBytes((Long) key);
 		}
 		if (key instanceof byte[]) {
-			System.err.println("BYTES: " + (key == null ? key : Base64Utils.encodeToString((byte[])key)));
+			System.err.println("BYTES: "
+					+ (key == null ? key : Base64Utils.encodeToString((byte[]) key)));
 			return (byte[]) key;
 		}
 		if (key instanceof ByteBuffer) {
