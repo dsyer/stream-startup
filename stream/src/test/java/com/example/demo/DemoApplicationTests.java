@@ -56,9 +56,10 @@ public class DemoApplicationTests {
 	public void contextLoads(CapturedOutput output) throws Exception {
 		String err = Awaitility.await().until(output::getErr,
 				value -> value.contains("kafka_offset=4"));
+		assertThat(err).contains("EXISTS:");
 		assertThat(err).doesNotContain("DONE:");
 		Awaitility.await().until(() -> client.max(), value -> value > 3);
-		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(3);
+		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(2);
 		client.done(4, "bar1");
 		err = Awaitility.await().until(output::getErr, value -> value.contains("DONE:"));
 		assertThat(client.find(4)).isEqualTo(Type.DONE);
@@ -152,6 +153,7 @@ public class DemoApplicationTests {
 		@PostConstruct
 		public void init() {
 			AdminClient client = AdminClient.create(admin.getConfig());
+			// TODO: this isn't working yet. Need to enable on the server.
 			client.deleteTopics(Arrays.asList(Events.AUDIT));
 			try (Consumer<Long, byte[]> consumer = factory.createConsumer()) {
 				TopicPartition partition = new TopicPartition("input", 0);
@@ -162,7 +164,7 @@ public class DemoApplicationTests {
 				}
 			}
 			for (long i = 0; i < 5; i++) {
-				this.kafka.send("input", ("foo" + i).getBytes());
+				this.kafka.send("input", ("foo" + (i==3 ? 2 : i)).getBytes());
 			}
 		}
 
@@ -177,7 +179,7 @@ public class DemoApplicationTests {
 			kafka = new KafkaContainer()
 					.withEnv("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
 					.withEnv("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1").withNetwork(null)
-					.withReuse(true);
+					; // .withReuse(true);
 			kafka.start();
 		}
 

@@ -24,6 +24,7 @@ import org.springframework.messaging.SubscribableChannel;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Base64Utils;
 
 @SpringBootApplication(proxyBeanMethods = false)
 @EnableBinding({ Events.class, Tables.class })
@@ -87,16 +88,16 @@ public class DemoApplication {
 		System.err.println("PENDING: " + message);
 		byte[] key = extractIdentifier(message);
 		if (audit.exists(key)) {
-			System.err.println("EXISTS: " + key);
+			System.err.println("EXISTS: " + Base64Utils.encodeToString(key));
 			return;
 		}
 		Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
 		if (offset != null) {
 			final byte[] longBytes = getBytes(offset);
 
-			System.err.println("SENDING: " + offset + ", " + key);
+			System.err.println("SENDING: " + offset + ", " + (key == null ? key : Base64Utils.encodeToString(key)));
 			events.audit().send(MessageBuilder.withPayload(message.getPayload())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes).build());
+					.setHeader(KafkaHeaders.MESSAGE_KEY, key).build());
 			events.events().send(MessageBuilder
 					.withPayload(
 							new Event(offset, message.getPayload(), Event.Type.PENDING))
@@ -141,7 +142,7 @@ public class DemoApplication {
 		}
 		if (key instanceof byte[]) {
 			ByteBuffer buffer = ByteBuffer.wrap((byte[]) key);
-			System.err.println("BYTES: " + key);
+			System.err.println("BYTES: " + (key == null ? key : Base64Utils.encodeToString((byte[])key)));
 			return (Long) buffer.asLongBuffer().get();
 		}
 		if (key instanceof ByteBuffer) {
