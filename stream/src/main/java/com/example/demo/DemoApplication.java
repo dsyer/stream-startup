@@ -126,15 +126,19 @@ public class DemoApplication {
 	}
 
 	private Long getLongHeader(Message<byte[]> message) {
+		// Postel's Law: be conservative in what you accept
 		Object key = message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
 		if (key instanceof Long) {
+			System.err.println("LONG: " + key);
 			return (Long) key;
 		}
 		if (key instanceof byte[]) {
 			ByteBuffer buffer = ByteBuffer.wrap((byte[]) key);
+			System.err.println("BYTES: " + key);
 			return (Long) buffer.asLongBuffer().get();
 		}
 		if (key instanceof ByteBuffer) {
+			System.err.println("BUFFER: " + key);
 			ByteBuffer buffer = (ByteBuffer) key;
 			return (Long) buffer.asLongBuffer().get();
 		}
