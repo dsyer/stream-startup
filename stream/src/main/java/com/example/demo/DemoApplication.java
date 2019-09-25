@@ -32,17 +32,12 @@ public class DemoApplication {
 
 	interface Events {
 		String INPUT = "input";
-		String AUDIT = "audit";
-		String AUDITSTORE = "audit-store";
 		String EVENTS = "events";
 		String EVENTSTORE = "event-store";
 		String DONE = "done";
 
 		@Input(INPUT)
 		SubscribableChannel input();
-
-		@Output(AUDIT)
-		MessageChannel audit();
 
 		@Output(EVENTS)
 		MessageChannel events();
@@ -54,14 +49,10 @@ public class DemoApplication {
 
 	interface Tables {
 		String EVENTS = "tmp-events";
-		String AUDIT = "tmp-audit";
 
 		@Input(EVENTS)
 		KStream<Long, Event> eventsTable();
 
-		@Input(AUDIT)
-		// TODO: better byte[]
-		KStream<byte[], byte[]> auditTable();
 	}
 
 	private final EventService service;
@@ -86,28 +77,19 @@ public class DemoApplication {
 	@StreamListener(value = Events.INPUT)
 	public void input(Message<byte[]> message) {
 		System.err.println("PENDING: " + message);
-		byte[] key = extractIdentifier(message);
+		byte[] key = extractor.extract(message);
 		if (audit.exists(key)) {
 			System.err.println("EXISTS: " + Base64Utils.encodeToString(key));
 			return;
 		}
 		Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
 		if (offset != null) {
-			final byte[] longBytes = getBytes(offset);
-
 			System.err.println("SENDING: " + offset + ", " + (key == null ? key : Base64Utils.encodeToString(key)));
-			events.audit().send(MessageBuilder.withPayload(message.getPayload())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, key).build());
 			events.events().send(MessageBuilder
 					.withPayload(
-							new Event(offset, message.getPayload(), Event.Type.PENDING))
-					.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes).build());
+							new Event(offset, key, Event.Type.PENDING))
+					.setHeader(KafkaHeaders.MESSAGE_KEY, key).build());
 		}
-
-	}
-
-	private byte[] extractIdentifier(Message<byte[]> message) {
-		return extractor.extract(message);
 	}
 
 	static byte[] getBytes(Long offset) {
@@ -120,45 +102,41 @@ public class DemoApplication {
 	@SendTo(Events.EVENTS)
 	public Message<?> done(Message<byte[]> message) {
 		System.err.println("DONE: " + message);
-		Long id = getLongHeader(message);
-		System.err.println("DONE: " + id);
-		Type type = service.find(id);
-		if (type != Type.PENDING) {
-			System.err.println("Not processed: " + id + " with type=" + type);
+		byte[] id = getBytesHeader(message);
+		System.err.println("DONE: " + Base64Utils.encodeToString(id));
+		Event type = service.find(id);
+		if (type.getType() != Type.PENDING) {
+			System.err.println("Not processed: " + Base64Utils.encodeToString(id) + " with type=" + type);
 			return null;
 		}
-		final byte[] longBytes = getBytes(id);
 		return MessageBuilder
-				.withPayload(new Event(id, message.getPayload(), Event.Type.DONE))
-				.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes).build();
+				.withPayload(new Event(type.getOffset(), id, Event.Type.DONE))
+				.setHeader(KafkaHeaders.MESSAGE_KEY, id).build();
 	}
 
-	private Long getLongHeader(Message<byte[]> message) {
+	private byte[] getBytesHeader(Message<byte[]> message) {
 		// Postel's Law: be conservative in what you accept
-		Object key = extractIdentifier(message);
+		Object key = message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
 		if (key instanceof Long) {
 			System.err.println("LONG: " + key);
-			return (Long) key;
+			return getBytes((Long) key);
 		}
 		if (key instanceof byte[]) {
-			ByteBuffer buffer = ByteBuffer.wrap((byte[]) key);
 			System.err.println("BYTES: " + (key == null ? key : Base64Utils.encodeToString((byte[])key)));
-			return (Long) buffer.asLongBuffer().get();
+			return (byte[]) key;
 		}
 		if (key instanceof ByteBuffer) {
 			System.err.println("BUFFER: " + key);
 			ByteBuffer buffer = (ByteBuffer) key;
-			return (Long) buffer.asLongBuffer().get();
+			return buffer.array();
 		}
-		return -1L;
+		return new byte[0];
 	}
 
 	@StreamListener
-	public void bind(@Input(Tables.EVENTS) KStream<Long, Event> events,
-			@Input(Tables.AUDIT) KStream<byte[], byte[]> input) {
+	public void bind(@Input(Tables.EVENTS) KStream<byte[], Event> events) {
 		events.groupByKey().reduce((id, event) -> event,
 				Materialized.as(Events.EVENTSTORE));
-		input.groupByKey().reduce((id, data) -> data, Materialized.as(Events.AUDITSTORE));
 	}
 
 }
@@ -166,13 +144,13 @@ public class DemoApplication {
 @Component
 class EventService {
 	private final InteractiveQueryService interactiveQueryService;
-	private ReadOnlyKeyValueStore<Long, Event> store;
+	private ReadOnlyKeyValueStore<byte[], Event> store;
 
 	public EventService(InteractiveQueryService interactiveQueryService) {
 		this.interactiveQueryService = interactiveQueryService;
 	}
 
-	public Event.Type find(long id) {
+	public Event find(byte[] id) {
 		try {
 			if (store == null) {
 				store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
@@ -180,13 +158,13 @@ class EventService {
 			}
 			Event event = store.get(id);
 			if (event == null) {
-				return Event.Type.UNKNOWN;
+				return Event.UNKNOWN;
 			}
-			return event.getType();
+			return event;
 		}
 		catch (Exception e) {
 			e.printStackTrace();
-			return Event.Type.UNKNOWN;
+			return Event.UNKNOWN;
 		}
 	}
 
@@ -195,7 +173,7 @@ class EventService {
 @Component
 class AuditService {
 	private final InteractiveQueryService interactiveQueryService;
-	private ReadOnlyKeyValueStore<byte[], byte[]> store;
+	private ReadOnlyKeyValueStore<byte[], Event> store;
 
 	public AuditService(InteractiveQueryService interactiveQueryService) {
 		this.interactiveQueryService = interactiveQueryService;
@@ -204,14 +182,14 @@ class AuditService {
 	public boolean exists(Object id) {
 		try {
 			if (store == null) {
-				store = interactiveQueryService.getQueryableStore(Events.AUDITSTORE,
+				store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
 						QueryableStoreTypes.keyValueStore());
 			}
 			if (id == null) {
 				return false;
 			}
 			if (id instanceof byte[]) {
-				byte[] data = store.get((byte[]) id);
+				Event data = store.get((byte[]) id);
 				if (data == null) {
 					return false;
 				}
@@ -233,6 +211,8 @@ class AuditService {
 }
 
 class Event {
+
+	public static final Event UNKNOWN = new Event(-1L, new byte[0], Type.UNKNOWN);
 
 	enum Type {
 		PENDING, DONE, CANCELLED, UNKNOWN;

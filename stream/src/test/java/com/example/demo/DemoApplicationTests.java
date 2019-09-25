@@ -39,6 +39,7 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.DigestUtils;
 import org.springframework.util.concurrent.ListenableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,13 +71,14 @@ public class DemoApplicationTests {
 
 		private final KafkaAdmin admin;
 		private final KafkaTemplate<byte[], byte[]> kafka;
-		private final ConsumerFactory<Long, byte[]> factory;
+		private final ConsumerFactory<byte[], byte[]> factory;
 		private InteractiveQueryService interactiveQueryService;
 
-		ReadOnlyKeyValueStore<Long, Event> store;
+		ReadOnlyKeyValueStore<byte[], Event> store;
 
-		public KafkaClientConfiguration(KafkaAdmin admin, KafkaTemplate<byte[], byte[]> kafka,
-										ConsumerFactory<Long, byte[]> factory,
+		public KafkaClientConfiguration(KafkaAdmin admin,
+				KafkaTemplate<byte[], byte[]> kafka,
+				ConsumerFactory<byte[], byte[]> factory,
 				InteractiveQueryService interactiveQueryService)
 				throws InterruptedException, ExecutionException {
 			this.admin = admin;
@@ -91,10 +93,12 @@ public class DemoApplicationTests {
 					store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
 							QueryableStoreTypes.keyValueStore());
 				}
-				Event event = store.get(id);
-				if (event == null) {
-					return Event.Type.UNKNOWN;
-				}
+				final KeyValueIterator<byte[], Event> all = store.all();
+
+				Iterable<KeyValue<byte[], Event>> t = () -> all;
+				final Event event = StreamSupport.stream(t.spliterator(), false)
+						.map(k -> k.value).filter(k -> k.getOffset() == id).findFirst()
+						.orElse(Event.UNKNOWN);
 				return event.getType();
 			}
 			catch (Exception e) {
@@ -106,10 +110,9 @@ public class DemoApplicationTests {
 		@Transactional
 		public ListenableFuture<SendResult<byte[], byte[]>> done(long id, String value) {
 			System.err.println("Generating data: " + id);
-
-			final byte[] longBytes = DemoApplication.getBytes(id);
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
-					.setHeader(KafkaHeaders.MESSAGE_KEY, longBytes)
+					.setHeader(KafkaHeaders.MESSAGE_KEY,
+							DigestUtils.md5Digest(("foo" + id).getBytes()))
 					.setHeader(KafkaHeaders.TOPIC, Events.DONE).build());
 		}
 
@@ -119,12 +122,12 @@ public class DemoApplicationTests {
 					store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
 							QueryableStoreTypes.keyValueStore());
 				}
-				final KeyValueIterator<Long, Event> all = store.all();
+				final KeyValueIterator<byte[], Event> all = store.all();
 
-				Iterable<KeyValue<Long, Event>> t = () -> all;
+				Iterable<KeyValue<byte[], Event>> t = () -> all;
 				final long max = StreamSupport.stream(t.spliterator(), false)
-						.filter(k -> k.value.getType() == type).mapToLong(k -> k.key)
-						.max().orElse(-1L);
+						.filter(k -> k.value.getType() == type)
+						.mapToLong(k -> k.value.getOffset()).max().orElse(-1L);
 				return max;
 			}
 			catch (Exception e) {
@@ -139,10 +142,10 @@ public class DemoApplicationTests {
 					store = interactiveQueryService.getQueryableStore(Events.EVENTSTORE,
 							QueryableStoreTypes.keyValueStore());
 				}
-				final KeyValueIterator<Long, Event> all = store.all();
-				Iterable<KeyValue<Long, Event>> t = () -> all;
+				final KeyValueIterator<byte[], Event> all = store.all();
+				Iterable<KeyValue<byte[], Event>> t = () -> all;
 				final long max = StreamSupport.stream(t.spliterator(), false)
-						.mapToLong(k -> k.key).max().orElse(-1L);
+						.mapToLong(k -> k.value.getOffset()).max().orElse(-1L);
 				return max;
 			}
 			catch (Exception e) {
@@ -154,8 +157,8 @@ public class DemoApplicationTests {
 		public void init() {
 			AdminClient client = AdminClient.create(admin.getConfig());
 			// TODO: this isn't working yet. Need to enable on the server.
-			client.deleteTopics(Arrays.asList(Events.AUDIT));
-			try (Consumer<Long, byte[]> consumer = factory.createConsumer()) {
+			client.deleteTopics(Arrays.asList(Events.EVENTS));
+			try (Consumer<byte[], byte[]> consumer = factory.createConsumer()) {
 				TopicPartition partition = new TopicPartition("input", 0);
 				consumer.assign(Collections.singleton(partition));
 				if (consumer.position(partition) > 2) {
@@ -164,7 +167,7 @@ public class DemoApplicationTests {
 				}
 			}
 			for (long i = 0; i < 5; i++) {
-				this.kafka.send("input", ("foo" + (i==3 ? 2 : i)).getBytes());
+				this.kafka.send("input", ("foo" + (i == 3 ? 2 : i)).getBytes());
 			}
 		}
 
@@ -178,8 +181,8 @@ public class DemoApplicationTests {
 		static {
 			kafka = new KafkaContainer()
 					.withEnv("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1")
-					.withEnv("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1").withNetwork(null)
-					; // .withReuse(true);
+					.withEnv("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR", "1")
+					.withNetwork(null); // .withReuse(true);
 			kafka.start();
 		}
 
