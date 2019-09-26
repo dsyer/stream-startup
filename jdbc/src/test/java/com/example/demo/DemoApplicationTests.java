@@ -32,6 +32,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.util.DigestUtils;
 import org.springframework.util.concurrent.ListenableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,14 +49,13 @@ public class DemoApplicationTests {
 	@Test
 	public void contextLoads(CapturedOutput output) throws Exception {
 		String err = Awaitility.await().until(output::getErr,
-				value -> value.contains("kafka_offset=3"));
+				value -> value.contains("kafka_offset=4"));
 		assertThat(err).doesNotContain("kafka_offset=2");
 		assertThat(err).doesNotContain("DONE:");
-		Awaitility.await().until(() -> client.offset("input"), value -> value > 3);
+		Awaitility.await().until(() -> client.offset(Inputs.PENDING), value -> value > 3);
 		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(3);
 		client.done(4, "bar1");
-		err = Awaitility.await().until(output::getErr,
-				value -> value.contains("DONE:"));
+		err = Awaitility.await().until(output::getErr, value -> value.contains("DONE:"));
 		assertThat(client.find(4)).isEqualTo(Event.Type.DONE);
 	}
 
@@ -74,13 +74,15 @@ public class DemoApplicationTests {
 		}
 
 		public Event.Type find(long id) {
-			return this.jdbc.queryForObject("SELECT type FROM event where offset=?", Event.Type.class, id);
+			return this.jdbc.queryForObject("SELECT type FROM event where offset=?",
+					Event.Type.class, id);
 		}
 
 		public ListenableFuture<SendResult<String, byte[]>> done(long id, String value) {
 			return kafka.send(MessageBuilder.withPayload(value.getBytes())
-					.setHeader(DemoApplication.EVENT_ID, id)
-					.setHeader(KafkaHeaders.TOPIC, "done").build());
+					.setHeader(KafkaHeaders.MESSAGE_KEY,
+							DigestUtils.md5Digest(("foo" + id).getBytes()))
+					.setHeader(KafkaHeaders.TOPIC, Inputs.DONE).build());
 		}
 
 		public Long max(Type type) {
@@ -89,17 +91,17 @@ public class DemoApplicationTests {
 		}
 
 		public Long offset(String topic) {
-			return jdbc.queryForObject("SELECT max(offset) FROM offsets where topic=?",
+			return jdbc.queryForObject("SELECT max(offset) FROM offset where topic=?",
 					Long.class, topic);
 		}
 
 		@PostConstruct
 		public void init() {
-			System.err.println(jdbc.queryForList("SELECT * FROM offsets"));
-			jdbc.update("UPDATE offsets SET offset=? WHERE topic='input' AND part=0", 2);
+			System.err.println(jdbc.queryForList("SELECT * FROM offset"));
+			jdbc.update("UPDATE offset SET offset=? WHERE topic='pending' AND part=0", 2);
 			jdbc.update("DELETE FROM event WHERE offset >= ?", 3);
 			try (Consumer<String, byte[]> consumer = factory.createConsumer()) {
-				TopicPartition partition = new TopicPartition("input", 0);
+				TopicPartition partition = new TopicPartition(Inputs.PENDING, 0);
 				consumer.assign(Collections.singleton(partition));
 				if (consumer.position(partition) > 2) {
 					System.err.println("No need to seed logs");
@@ -107,7 +109,7 @@ public class DemoApplicationTests {
 				}
 			}
 			for (int i = 0; i < 5; i++) {
-				this.kafka.send("input", ("foo" + i).getBytes());
+				this.kafka.send(Inputs.PENDING, ("foo" + i).getBytes());
 			}
 		}
 

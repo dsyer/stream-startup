@@ -1,2 +1,2 @@
-INSERT IGNORE INTO offsets VALUES ('input', 0, 0);
-INSERT IGNORE INTO offsets VALUES ('done', 0, 0);
+INSERT IGNORE INTO offset VALUES (0, 0, 0, 'pending');
+INSERT IGNORE INTO offset VALUES (1, 0, 0, 'done');

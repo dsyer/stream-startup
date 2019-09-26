@@ -10,71 +10,65 @@ import javax.persistence.Id;
 import javax.sql.DataSource;
 import javax.transaction.Transactional;
 
-import com.example.demo.DemoApplication.Done;
 import org.apache.kafka.common.TopicPartition;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.stream.annotation.EnableBinding;
-import org.springframework.cloud.stream.annotation.Input;
 import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.config.ListenerContainerCustomizer;
-import org.springframework.cloud.stream.messaging.Sink;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.domain.Example;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.listener.AbstractMessageListenerContainer;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.Message;
-import org.springframework.messaging.SubscribableChannel;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Base64Utils;
 
 @SpringBootApplication(proxyBeanMethods = false)
-@EnableBinding({ Sink.class, Done.class })
+@EnableBinding({ Inputs.class })
 public class DemoApplication {
-
-	interface Done {
-		String INPUT = "done";
-
-		@Input(Done.INPUT)
-		SubscribableChannel input();
-	}
-
-	public static final String EVENT_ID = "x_event_id";
 
 	private final EventService service;
 
-	public DemoApplication(EventService service) {
+	private final KeyExtractor extractor;
+
+	public DemoApplication(EventService service, KeyExtractor extractor) {
 		this.service = service;
+		this.extractor = extractor;
 	}
 
 	public static void main(String[] args) throws Exception {
 		new SpringApplicationBuilder(DemoApplication.class).run(args);
 	}
 
-	@StreamListener(value = Sink.INPUT)
+	@StreamListener(value = Inputs.PENDING)
 	public void input(Message<byte[]> message) {
+		byte[] key = extractor.extract(message);
+		if (service.exists(key)) {
+			System.err.println("PENDING: " + message);
+			System.err.println("EXISTS: " + Base64Utils.encodeToString(key));
+			return;
+		}
 		Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
 		System.err.println("PENDING: " + message);
 		if (offset != null) {
-			service.add(offset, message.getPayload());
+			System.err.println("SENDING: " + offset + ", "
+					+ (key == null ? key : Base64Utils.encodeToString(key)));
+			service.add(offset, key);
 		}
 	}
 
-	@StreamListener(value = Done.INPUT)
+	@StreamListener(value = Inputs.DONE)
 	public void done(Message<byte[]> message) {
 		Long offset = (Long) message.getHeaders().get(KafkaHeaders.OFFSET);
+		byte[] key = (byte[]) message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
 		System.err.println("DONE: " + message);
 		if (offset != null) {
-			Long id = (Long) message.getHeaders().get(DemoApplication.EVENT_ID);
-			if (id != null) {
-				service.complete(offset, id, message.getPayload());
-			}
-			else {
-				System.err.println(
-						"Error: no event id for incoming data at: offset=" + offset);
-			}
+			service.complete(offset, key);
 		}
 	}
 
@@ -118,39 +112,90 @@ public class DemoApplication {
 class EventService {
 
 	private final EventRepository events;
-	private JdbcTemplate template;
+	private final JdbcTemplate jdbc;
 
-	public EventService(EventRepository events, DataSource datasSource) {
-		this.template = new JdbcTemplate(datasSource);
+	public EventService(EventRepository events, DataSource dataSource) {
+		this.jdbc = new JdbcTemplate(dataSource);
 		this.events = events;
 	}
 
+	public boolean exists(byte[] key) {
+		return false;
+	}
+
 	@Transactional
-	public void add(Long offset, byte[] data) {
+	public void add(Long offset, byte[] key) {
 		if (events.existsById(offset)) {
 			return;
 		}
 		System.err.println("Saving PENDING offset=" + offset);
-		template.update("UPDATE offsets SET offset=? WHERE topic='input' AND part=0",
-				offset);
-		events.save(new Event(offset, data, Event.Type.PENDING));
+		jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0", offset, Inputs.PENDING);
+		events.save(new Event(offset, key, Event.Type.PENDING));
 	}
 
 	@Transactional
-	public void complete(Long offset, Long id, byte[] data) {
-		Optional<Event> event = events.findById(id);
+	public void complete(Long offset, byte[] key) {
+		Optional<Event> event = events
+				.findOne(Example.of(new Event(null, key, Event.Type.PENDING)));
 		System.err.println("Saving DONE offset=" + offset);
-		template.update("UPDATE offsets SET offset=? WHERE topic='done' AND part=0",
-				offset);
-		if (!event.filter(e -> e.getType() == Event.Type.PENDING).isPresent()) {
-			System.err.println("Not updating Event=" + event);
+		jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0", offset, Inputs.DONE);
+		if (!event.isPresent()) {
+			System.err
+					.println("Not updating Event key=" + Base64Utils.encodeToString(key));
 			return;
 		}
-		events.save(new Event(id, data, Event.Type.DONE));
+		System.err.println("Updating Event key=" + Base64Utils.encodeToString(key));
+		events.save(new Event(event.get().getOffset(), event.get().getValue(),
+				Event.Type.DONE));
 	}
 }
 
 interface EventRepository extends JpaRepository<Event, Long> {
+}
+
+interface OffsetRepository extends JpaRepository<Offset, Long> {
+}
+
+@Entity
+class Offset {
+	@Id
+	private Long id;
+	private String topic;
+	private Long part;
+	private Long offset;
+
+	Offset() {
+	}
+
+	public Offset(String topic, Long partition, Long offset) {
+		this.topic = topic;
+		this.part = partition;
+		this.offset = offset;
+	}
+
+	public String getTopic() {
+		return this.topic;
+	}
+
+	public void setTopic(String topic) {
+		this.topic = topic;
+	}
+
+	public Long getPart() {
+		return this.part;
+	}
+
+	public void setPart(Long part) {
+		this.part = part;
+	}
+
+	public Long getOffset() {
+		return this.offset;
+	}
+
+	public void setOffset(Long offset) {
+		this.offset = offset;
+	}
 }
 
 @Entity
@@ -170,7 +215,7 @@ class Event {
 	public Event() {
 	}
 
-	public Event(long offset, byte[] value, Event.Type type) {
+	public Event(Long offset, byte[] value, Event.Type type) {
 		this.offset = offset;
 		this.value = value;
 		this.type = type;
@@ -222,10 +267,8 @@ class ConsumerConfiguration {
 		if (initialized != null) {
 			return;
 		}
-		this.offset.put(topic,
-				this.template.queryForObject(
-						"SELECT offset FROM offsets where topic=? AND part=0",
-						Long.class, topic));
+		this.offset.put(topic, this.template.queryForObject(
+				"SELECT offset FROM offset where topic=? AND part=0", Long.class, topic));
 	}
 
 }

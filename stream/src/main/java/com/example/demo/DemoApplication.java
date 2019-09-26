@@ -145,6 +145,7 @@ class EventService {
 				store = interactiveQueryService.getQueryableStore(Tables.EVENTSTORE,
 						QueryableStoreTypes.keyValueStore());
 			}
+			System.err.println("FINDING: " + Base64Utils.encodeToString(id));
 			Event event = store.get(id);
 			if (event == null) {
 				return Event.UNKNOWN;
