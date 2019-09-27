@@ -6,11 +6,14 @@ import java.util.Map;
 import java.util.Optional;
 
 import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.sql.DataSource;
 import javax.transaction.Transactional;
 
 import org.apache.kafka.common.TopicPartition;
+import org.hibernate.annotations.GenericGenerator;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -18,6 +21,7 @@ import org.springframework.cloud.stream.annotation.EnableBinding;
 import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.config.ListenerContainerCustomizer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.data.domain.Example;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -129,7 +133,8 @@ class EventService {
 			return;
 		}
 		System.err.println("Saving PENDING offset=" + offset);
-		jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0", offset, Inputs.PENDING);
+		jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0", offset,
+				Inputs.PENDING);
 		events.save(new Event(offset, key, Event.Type.PENDING));
 	}
 
@@ -138,7 +143,8 @@ class EventService {
 		Optional<Event> event = events
 				.findOne(Example.of(new Event(null, key, Event.Type.PENDING)));
 		System.err.println("Saving DONE offset=" + offset);
-		jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0", offset, Inputs.DONE);
+		jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0", offset,
+				Inputs.DONE);
 		if (!event.isPresent()) {
 			System.err
 					.println("Not updating Event key=" + Base64Utils.encodeToString(key));
@@ -159,6 +165,8 @@ interface OffsetRepository extends JpaRepository<Offset, Long> {
 @Entity
 class Offset {
 	@Id
+	@GeneratedValue(strategy = GenerationType.AUTO, generator = "native")
+	@GenericGenerator(name = "native", strategy = "native")
 	private Long id;
 	private String topic;
 	private Long part;
@@ -251,7 +259,7 @@ class Event {
 
 class ConsumerConfiguration {
 	private JdbcTemplate template;
-	private Map<String, Long> offset = new HashMap<>();
+	private Map<String, Long> offsets = new HashMap<>();
 
 	public ConsumerConfiguration(DataSource datasSource) {
 		this.template = new JdbcTemplate(datasSource);
@@ -259,16 +267,26 @@ class ConsumerConfiguration {
 
 	public long getOffset(String topic, int partition) {
 		init(topic);
-		return this.offset.get(topic);
+		return this.offsets.get(topic);
 	}
 
 	private void init(String topic) {
-		Long initialized = this.offset.get(topic);
+		Long initialized = this.offsets.get(topic);
 		if (initialized != null) {
 			return;
 		}
-		this.offset.put(topic, this.template.queryForObject(
-				"SELECT offset FROM offset where topic=? AND part=0", Long.class, topic));
+		Long offset = 0L;
+		try {
+			offset = this.template.queryForObject(
+					"SELECT offset FROM offset where topic=? AND part=0", Long.class,
+					topic);
+		}
+		catch (EmptyResultDataAccessException e) {
+			this.template.update(
+					"INSERT INTO offset (topic, part, offset) VALUES (?, 0, ?)",
+					Inputs.DONE, offset);
+		}
+		this.offsets.put(topic, offset);
 	}
 
 }

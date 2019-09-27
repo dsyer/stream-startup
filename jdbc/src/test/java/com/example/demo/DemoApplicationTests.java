@@ -98,7 +98,12 @@ public class DemoApplicationTests {
 		@PostConstruct
 		public void init() {
 			System.err.println(jdbc.queryForList("SELECT * FROM offset"));
-			jdbc.update("UPDATE offset SET offset=? WHERE topic='pending' AND part=0", 2);
+			int count = jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0",
+					2, Inputs.PENDING);
+			if (count < 1) {
+				jdbc.update("INSERT INTO offset (topic, part, offset) values (?,0,?)",
+						Inputs.PENDING, 2);
+			}
 			jdbc.update("DELETE FROM event WHERE offset >= ?", 3);
 			try (Consumer<String, byte[]> consumer = factory.createConsumer()) {
 				TopicPartition partition = new TopicPartition(Inputs.PENDING, 0);
