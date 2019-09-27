@@ -286,11 +286,8 @@ class ConsumerConfiguration {
 		if (initialized != null) {
 			return;
 		}
-		Offset offset = offsets.findById(new OffsetId(topic, 0L)).orElseGet(() -> {
-			Offset value = new Offset(topic, 0L, 0L);
-			offsets.save(value);
-			return value;
-		});
+		Offset offset = offsets.findById(new OffsetId(topic, 0L))
+				.orElse(offsets.save(new Offset(topic, 0L, 0L)));
 		this.cache.put(topic, offset.getOffset());
 	}
 
