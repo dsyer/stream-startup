@@ -1,19 +1,18 @@
 package com.example.demo;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.IdClass;
 import javax.sql.DataSource;
 import javax.transaction.Transactional;
 
 import org.apache.kafka.common.TopicPartition;
-import org.hibernate.annotations.GenericGenerator;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -159,16 +158,15 @@ class EventService {
 interface EventRepository extends JpaRepository<Event, Long> {
 }
 
-interface OffsetRepository extends JpaRepository<Offset, Long> {
+interface OffsetRepository extends JpaRepository<Offset, OffsetId> {
 }
 
 @Entity
+@IdClass(OffsetId.class)
 class Offset {
 	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO, generator = "native")
-	@GenericGenerator(name = "native", strategy = "native")
-	private Long id;
 	private String topic;
+	@Id
 	private Long part;
 	private Long offset;
 
@@ -204,6 +202,17 @@ class Offset {
 	public void setOffset(Long offset) {
 		this.offset = offset;
 	}
+}
+
+@SuppressWarnings({"serial", "unused"})
+class OffsetId implements Serializable {
+	private String topic;
+	private Long part;
+	OffsetId() {}
+	public OffsetId(String topic, Long part) {
+		this.topic = topic;
+		this.part = part;
+	}	
 }
 
 @Entity
