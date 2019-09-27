@@ -20,7 +20,6 @@ import org.springframework.cloud.stream.annotation.EnableBinding;
 import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.config.ListenerContainerCustomizer;
 import org.springframework.context.annotation.Bean;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.data.domain.Example;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -105,8 +104,8 @@ public class DemoApplication {
 	}
 
 	@Bean
-	ConsumerConfiguration config(DataSource datasSource) {
-		return new ConsumerConfiguration(datasSource);
+	ConsumerConfiguration config(OffsetRepository offsets) {
+		return new ConsumerConfiguration(offsets);
 	}
 
 }
@@ -204,15 +203,18 @@ class Offset {
 	}
 }
 
-@SuppressWarnings({"serial", "unused"})
+@SuppressWarnings({ "serial", "unused" })
 class OffsetId implements Serializable {
 	private String topic;
 	private Long part;
-	OffsetId() {}
+
+	OffsetId() {
+	}
+
 	public OffsetId(String topic, Long part) {
 		this.topic = topic;
 		this.part = part;
-	}	
+	}
 }
 
 @Entity
@@ -267,35 +269,29 @@ class Event {
 }
 
 class ConsumerConfiguration {
-	private JdbcTemplate template;
-	private Map<String, Long> offsets = new HashMap<>();
+	private Map<String, Long> cache = new HashMap<>();
+	private OffsetRepository offsets;
 
-	public ConsumerConfiguration(DataSource datasSource) {
-		this.template = new JdbcTemplate(datasSource);
+	public ConsumerConfiguration(OffsetRepository offsets) {
+		this.offsets = offsets;
 	}
 
 	public long getOffset(String topic, int partition) {
 		init(topic);
-		return this.offsets.get(topic);
+		return this.cache.get(topic);
 	}
 
 	private void init(String topic) {
-		Long initialized = this.offsets.get(topic);
+		Long initialized = this.cache.get(topic);
 		if (initialized != null) {
 			return;
 		}
-		Long offset = 0L;
-		try {
-			offset = this.template.queryForObject(
-					"SELECT offset FROM offset where topic=? AND part=0", Long.class,
-					topic);
-		}
-		catch (EmptyResultDataAccessException e) {
-			this.template.update(
-					"INSERT INTO offset (topic, part, offset) VALUES (?, 0, ?)",
-					Inputs.DONE, offset);
-		}
-		this.offsets.put(topic, offset);
+		Offset offset = offsets.findById(new OffsetId(topic, 0L)).orElseGet(() -> {
+			Offset value = new Offset(topic, 0L, 0L);
+			offsets.save(value);
+			return value;
+		});
+		this.cache.put(topic, offset.getOffset());
 	}
 
 }
