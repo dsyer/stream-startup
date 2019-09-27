@@ -9,7 +9,6 @@ import java.util.Optional;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.IdClass;
-import javax.sql.DataSource;
 import javax.transaction.Transactional;
 
 import org.apache.kafka.common.TopicPartition;
@@ -22,7 +21,6 @@ import org.springframework.cloud.stream.config.ListenerContainerCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.domain.Example;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.listener.AbstractMessageListenerContainer;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -114,10 +112,10 @@ public class DemoApplication {
 class EventService {
 
 	private final EventRepository events;
-	private final JdbcTemplate jdbc;
+	private final OffsetRepository offsets;
 
-	public EventService(EventRepository events, DataSource dataSource) {
-		this.jdbc = new JdbcTemplate(dataSource);
+	public EventService(EventRepository events, OffsetRepository offsets) {
+		this.offsets = offsets;
 		this.events = events;
 	}
 
@@ -131,8 +129,7 @@ class EventService {
 			return;
 		}
 		System.err.println("Saving PENDING offset=" + offset);
-		jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0", offset,
-				Inputs.PENDING);
+		offsets.save(new Offset(Inputs.PENDING, 0L, offset));
 		events.save(new Event(offset, key, Event.Type.PENDING));
 	}
 
@@ -141,8 +138,7 @@ class EventService {
 		Optional<Event> event = events
 				.findOne(Example.of(new Event(null, key, Event.Type.PENDING)));
 		System.err.println("Saving DONE offset=" + offset);
-		jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0", offset,
-				Inputs.DONE);
+		offsets.save(new Offset(Inputs.DONE, 0L, offset));
 		if (!event.isPresent()) {
 			System.err
 					.println("Not updating Event key=" + Base64Utils.encodeToString(key));

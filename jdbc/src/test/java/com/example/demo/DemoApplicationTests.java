@@ -97,7 +97,6 @@ public class DemoApplicationTests {
 
 		@PostConstruct
 		public void init() {
-			System.err.println(jdbc.queryForList("SELECT * FROM offset"));
 			int count = jdbc.update("UPDATE offset SET offset=? WHERE topic=? AND part=0",
 					2, Inputs.PENDING);
 			if (count < 1) {
