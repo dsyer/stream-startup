@@ -145,7 +145,7 @@ class EventService {
 			return;
 		}
 		System.err.println("Updating Event key=" + Base64Utils.encodeToString(key));
-		events.save(new Event(event.get().getOffset(), event.get().getValue(),
+		events.save(new Event(event.get().getOffset(), event.get().getHash(),
 				Event.Type.DONE));
 	}
 }
@@ -225,23 +225,27 @@ class Event {
 
 	private Type type = Type.PENDING;
 
-	private byte[] value;
+	private String hash;
 
 	public Event() {
 	}
 
-	public Event(Long offset, byte[] value, Event.Type type) {
+	public Event(Long offset, byte[] hash, Event.Type type) {
+		this(offset, Base64Utils.encodeToString(hash), type);
+	}
+
+	public Event(Long offset, String hash, Event.Type type) {
 		this.offset = offset;
-		this.value = value;
+		this.hash = hash;
 		this.type = type;
 	}
 
-	public byte[] getValue() {
-		return this.value;
+	public String getHash() {
+		return this.hash;
 	}
 
-	public void setValue(byte[] value) {
-		this.value = value;
+	public void setHash(String hash) {
+		this.hash = hash;
 	}
 
 	public Type getType() {
@@ -258,8 +262,8 @@ class Event {
 
 	@Override
 	public String toString() {
-		return "Event [offset=" + offset + ", value=[" + this.value.length + "], type="
-				+ type + "]";
+		return "Event [offset=" + offset + ", hash=[" + this.hash + "], type=" + type
+				+ "]";
 	}
 
 }
