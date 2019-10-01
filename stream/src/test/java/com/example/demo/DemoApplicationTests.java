@@ -123,8 +123,8 @@ public class DemoApplicationTests {
 				Iterable<KeyValue<byte[], Event>> t = () -> all;
 				final Event event = StreamSupport.stream(t.spliterator(), false)
 						.filter(e -> {
-							System.err.println(
-									Base64Utils.encodeToString(e.key) + ": " + e.value);
+							System.err.println("FIND: "
+									+ Base64Utils.encodeToString(e.key) + ", " + e.value);
 							return e.value.getOffset().equals(id);
 						}).map(k -> k.value).findFirst().orElse(Event.UNKNOWN);
 				return event.getType();

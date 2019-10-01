@@ -89,22 +89,16 @@ public class DemoApplication {
 							@Override
 							public KeyValue<byte[], Event> transform(byte[] key,
 									byte[] value) {
-								System.err.println("TRANSFORM: " + new Event(
-										context.offset(), key, Event.Type.UNKNOWN));
-								return new KeyValue<>(key, new Event(context.offset(),
-										key, Event.Type.UNKNOWN));
+								Event event = new Event(context.offset(), key,
+										Event.Type.PENDING);
+								System.err.println("PENDING: " + event);
+								return new KeyValue<>(key, event);
 							}
 
 							@Override
 							public void close() {
 							}
-						})
-				.map((key, v) -> {
-					System.err.println("PENDING: " + v);
-					Long offset = v.getOffset();
-					return new KeyValue<>(key,
-							new Event(offset, key, Event.Type.PENDING));
-				});
+						});
 	}
 
 	static byte[] getBytes(Long offset) {
