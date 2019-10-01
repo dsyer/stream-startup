@@ -128,10 +128,11 @@ class DoneListener {
 				.filter((k, v) -> v.value != null
 						&& v.value.getType() == Event.Type.PENDING)
 				.map((key, v) -> {
-					System.err.println(
-							"DONE: " + Base64Utils.encodeToString(key) + ", " + v.value);
 					Long offset = v.value.getOffset();
-					return new KeyValue<>(key, new Event(offset, key, Event.Type.DONE));
+					Event value = new Event(offset, key, Event.Type.DONE);
+					System.err.println(
+							"DONE: " + Base64Utils.encodeToString(key) + ", " + value);
+					return new KeyValue<>(key, value);
 				});
 	}
 

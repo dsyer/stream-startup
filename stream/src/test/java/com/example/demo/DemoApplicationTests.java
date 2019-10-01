@@ -46,6 +46,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.Base64Utils;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.concurrent.ListenableFuture;
 
@@ -120,10 +121,12 @@ public class DemoApplicationTests {
 				final KeyValueIterator<byte[], Event> all = store.all();
 
 				Iterable<KeyValue<byte[], Event>> t = () -> all;
-				byte[] key = DigestUtils.md5Digest(("foo" + id).getBytes());
 				final Event event = StreamSupport.stream(t.spliterator(), false)
-						.map(k -> k.value).filter(e -> { System.err.println(e);return e.getValue().equals(key);})
-						.findFirst().orElse(Event.UNKNOWN);
+						.filter(e -> {
+							System.err.println(
+									Base64Utils.encodeToString(e.key) + ": " + e.value);
+							return e.value.getOffset().equals(id);
+						}).map(k -> k.value).findFirst().orElse(Event.UNKNOWN);
 				return event.getType();
 			}
 			catch (Exception e) {
