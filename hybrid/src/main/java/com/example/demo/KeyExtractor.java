@@ -16,22 +16,14 @@
 
 package com.example.demo;
 
-import org.springframework.stereotype.Component;
-import org.springframework.util.DigestUtils;
+import org.springframework.messaging.Message;
 
 /**
  * @author Dave Syer
  *
  */
-@Component
-public class DefaultKeyExtractor implements KeyExtractor {
+public interface KeyExtractor {
 
-	@Override
-	public byte[] extract(byte[] key, byte[] value) {
-		if (key instanceof byte[]) {
-			return (byte[]) key;
-		}
-		return DigestUtils.md5Digest(value);
-	}
+	byte[] extract(Message<byte[]> message);
 
 }

@@ -16,8 +16,9 @@
 
 package com.example.demo;
 
+import org.apache.kafka.streams.kstream.KStream;
+
 import org.springframework.cloud.stream.annotation.Input;
-import org.springframework.messaging.SubscribableChannel;
 
 /**
  * @author Dave Syer
@@ -29,9 +30,9 @@ public interface Inputs {
 	String DONE = "done";
 
 	@Input(PENDING)
-	SubscribableChannel pending();
+	KStream<byte[], byte[]> pending();
 
 	@Input(DONE)
-	SubscribableChannel done();
+	KStream<byte[], byte[]> done();
 
 }

@@ -16,6 +16,10 @@
 
 package com.example.demo;
 
+import java.nio.ByteBuffer;
+
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 import org.springframework.util.DigestUtils;
 
@@ -27,11 +31,24 @@ import org.springframework.util.DigestUtils;
 public class DefaultKeyExtractor implements KeyExtractor {
 
 	@Override
-	public byte[] extract(byte[] key, byte[] value) {
-		if (key instanceof byte[]) {
-			return (byte[]) key;
+	public byte[] extract(Message<byte[]> message) {
+		Object object = message.getHeaders().get(KafkaHeaders.RECEIVED_MESSAGE_KEY);
+		if (object instanceof byte[]) {
+			return (byte[]) object;
 		}
-		return DigestUtils.md5Digest(value);
+		if (object instanceof Long) {
+			return getBytes((Long) object);
+		}
+		if (object !=null) {
+			throw new IllegalArgumentException("Message key type not supported (must be byte[] or long): " + (object == null ? null : object.getClass()));
+		}
+		return DigestUtils.md5Digest(message.getPayload());
+	}
+
+	static byte[] getBytes(Long offset) {
+		ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+		buffer.putLong(offset);
+		return buffer.array();
 	}
 
 }

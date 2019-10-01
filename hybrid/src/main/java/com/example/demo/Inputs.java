@@ -16,22 +16,22 @@
 
 package com.example.demo;
 
-import org.springframework.stereotype.Component;
-import org.springframework.util.DigestUtils;
+import org.springframework.cloud.stream.annotation.Input;
+import org.springframework.messaging.SubscribableChannel;
 
 /**
  * @author Dave Syer
  *
  */
-@Component
-public class DefaultKeyExtractor implements KeyExtractor {
+public interface Inputs {
 
-	@Override
-	public byte[] extract(byte[] key, byte[] value) {
-		if (key instanceof byte[]) {
-			return (byte[]) key;
-		}
-		return DigestUtils.md5Digest(value);
-	}
+	String PENDING = "pending";
+	String DONE = "done";
+
+	@Input(PENDING)
+	SubscribableChannel pending();
+
+	@Input(DONE)
+	SubscribableChannel done();
 
 }

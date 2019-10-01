@@ -16,14 +16,12 @@
 
 package com.example.demo;
 
-import org.springframework.messaging.Message;
-
 /**
  * @author Dave Syer
  *
  */
 public interface KeyExtractor {
 
-	byte[] extract(Message<byte[]> message);
+	byte[] extract(byte[] key, byte[] value);
 
 }
