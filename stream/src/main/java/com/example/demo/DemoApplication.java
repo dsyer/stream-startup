@@ -70,12 +70,13 @@ public class DemoApplication {
 				}) //
 				.leftJoin(events, (value, event) -> new KeyValue<>(value, event)) //
 				.filter((k, v) -> {
-					if (v.value !=null) {
+					if (v.value != null) {
 						System.err.println("EXISTS: " + v.value);
 					}
 					return v.value == null;
 				}) //
-				.map((k, v) -> new KeyValue<>(k, v.key)).transform(
+				.map((k, v) -> new KeyValue<>(k, v.key)) //
+				.transform(
 						() -> new Transformer<byte[], byte[], KeyValue<byte[], Event>>() {
 
 							private ProcessorContext context;
@@ -88,9 +89,8 @@ public class DemoApplication {
 							@Override
 							public KeyValue<byte[], Event> transform(byte[] key,
 									byte[] value) {
-								System.err.println("TRANSFORM: " + context.offset() + ", "
-										+ new Event(context.offset(), key,
-												Event.Type.UNKNOWN));
+								System.err.println("TRANSFORM: " + new Event(
+										context.offset(), key, Event.Type.UNKNOWN));
 								return new KeyValue<>(key, new Event(context.offset(),
 										key, Event.Type.UNKNOWN));
 							}
@@ -100,8 +100,7 @@ public class DemoApplication {
 							}
 						})
 				.map((key, v) -> {
-					System.err.println("PENDING: " + Base64Utils.encodeToString(key));
-					System.err.println(v);
+					System.err.println("PENDING: " + v);
 					Long offset = v.getOffset();
 					return new KeyValue<>(key,
 							new Event(offset, key, Event.Type.PENDING));
