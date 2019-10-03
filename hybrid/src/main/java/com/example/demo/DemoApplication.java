@@ -17,6 +17,7 @@ import org.springframework.cloud.stream.annotation.Input;
 import org.springframework.cloud.stream.annotation.Output;
 import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.binder.kafka.streams.InteractiveQueryService;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -50,6 +51,8 @@ public class DemoApplication {
 
 	private final KeyExtractor extractor;
 
+	private AcknowledgmentOffset ackoff;
+
 	public DemoApplication(EventService service, KeyExtractor extractor) {
 		this.service = service;
 		this.extractor = extractor;
@@ -73,6 +76,20 @@ public class DemoApplication {
 		if (offset != null) {
 			System.err.println("SENDING: " + offset + ", "
 					+ (key == null ? key : Base64Utils.encodeToString(key)));
+			if (offset != null) {
+				Acknowledgment ack;
+				if (ackoff != null && ackoff.offset < offset) {
+					ack = ackoff.ack;
+					System.err.println("Acking: " + offset);
+					ack.acknowledge();
+				}
+				ack = message.getHeaders().get("kafka_acknowledgment",
+						Acknowledgment.class);
+				if (ack != null) {
+					System.err.println("Saving: " + offset + ", previous: " + ackoff);
+					ackoff = new AcknowledgmentOffset(ack, offset);
+				}
+			}
 			return MessageBuilder.withPayload(new Event(offset, key, Event.Type.PENDING))
 					.setHeader(KafkaHeaders.MESSAGE_KEY, key).build();
 		}
@@ -127,6 +144,21 @@ public class DemoApplication {
 		events.groupByKey().reduce((id, event) -> event,
 				Materialized.as(Tables.EVENTSTORE));
 	}
+
+	static class AcknowledgmentOffset {
+			private Acknowledgment ack;
+			long offset;
+
+			AcknowledgmentOffset(Acknowledgment ack, long offset) {
+				this.ack = ack;
+				this.offset = offset;
+			}
+	
+			@Override
+			public String toString() {
+				return "" + offset;
+			}
+		}
 
 }
 
