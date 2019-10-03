@@ -71,9 +71,8 @@ public class DemoApplicationTests {
 		Awaitility.await().until(() -> client.max(), value -> value > 3);
 		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(2);
 		client.done(4, "bar1");
-		err = Awaitility.await().until(output::getErr, value -> value.contains("DONE:"));
-		assertThat(Awaitility.await().until(() -> client.find(4),
-				value -> value != Type.UNKNOWN)).isEqualTo(Type.DONE);
+		Awaitility.await().until(output::getErr, value -> value.contains("DONE:"));
+		Awaitility.await().until(() -> client.find(4), value -> value == Type.DONE);
 	}
 
 	@TestConfiguration
