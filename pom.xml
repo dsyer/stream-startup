@@ -17,6 +17,8 @@
 	<modules>
 		<module>jdbc</module>
 		<module>stream</module>
+		<module>hybrid</module>
+		<module>eventuate</module>
 	</modules>
 
 	<properties>
