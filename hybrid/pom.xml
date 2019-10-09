@@ -60,7 +60,7 @@
 			<groupId>com.github.testcontainers.testcontainers-java</groupId>
 			<artifactId>kafka</artifactId>
 			<version>reusable_containers-SNAPSHOT</version>
-			<optional>true</optional>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
