@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import javax.persistence.Entity;
 import javax.persistence.Id;
@@ -26,7 +25,6 @@ import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.config.ListenerContainerCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.Example;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.kafka.listener.AbstractMessageListenerContainer;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
@@ -120,14 +118,13 @@ public class DemoApplication {
 @Component
 class EventService {
 
-	private final EventRepository events;
 	private final OffsetRepository offsets;
 	private final DomainEventPublisher domainEventPublisher;
 
-	public EventService(DomainEventPublisher domainEventPublisher, EventRepository events, OffsetRepository offsets) {
+	public EventService(DomainEventPublisher domainEventPublisher,
+			OffsetRepository offsets) {
 		this.domainEventPublisher = domainEventPublisher;
 		this.offsets = offsets;
-		this.events = events;
 	}
 
 	public boolean exists(byte[] key) {
@@ -136,34 +133,21 @@ class EventService {
 
 	@Transactional
 	public void add(Long offset, byte[] key) {
-		if (events.existsById(offset)) {
-			return;
-		}
 		System.err.println("Saving PENDING offset=" + offset);
 		offsets.save(new Offset(Inputs.PENDING, 0L, offset));
-		Event event = events.save(new Event(offset, key, Event.Type.PENDING));
+		Event event = new Event(key, Event.Type.PENDING);
 		domainEventPublisher.publish(Event.class, key, Arrays.asList(event));
 	}
 
 	@Transactional
 	public void complete(Long offset, byte[] key) {
-		Optional<Event> event = events
-				.findOne(Example.of(new Event(null, key, Event.Type.PENDING)));
 		System.err.println("Saving DONE offset=" + offset);
 		offsets.save(new Offset(Inputs.DONE, 0L, offset));
-		if (!event.isPresent()) {
-			System.err
-					.println("Not updating Event key=" + Base64Utils.encodeToString(key));
-			return;
-		}
 		System.err.println("Updating Event key=" + Base64Utils.encodeToString(key));
-		Event publish = events.save(new Event(event.get().getOffset(), event.get().getHash(),
-				Event.Type.DONE));
+		// TODO: wrong offset (should be the one from the original request)
+		Event publish = new Event(key, Event.Type.DONE);
 		domainEventPublisher.publish(Event.class, key, Arrays.asList(publish));
 	}
-}
-
-interface EventRepository extends JpaRepository<Event, Long> {
 }
 
 interface OffsetRepository extends JpaRepository<Offset, OffsetId> {
@@ -226,15 +210,11 @@ class OffsetId implements Serializable {
 	}
 }
 
-@Entity
 class Event implements DomainEvent {
 
 	enum Type {
 		PENDING, DONE, CANCELLED, UNKNOWN;
 	}
-
-	@Id
-	private Long offset;
 
 	private Type type = Type.PENDING;
 
@@ -243,12 +223,11 @@ class Event implements DomainEvent {
 	public Event() {
 	}
 
-	public Event(Long offset, byte[] hash, Event.Type type) {
-		this(offset, Base64Utils.encodeToString(hash), type);
+	public Event(byte[] hash, Event.Type type) {
+		this(Base64Utils.encodeToString(hash), type);
 	}
 
-	public Event(Long offset, String hash, Event.Type type) {
-		this.offset = offset;
+	public Event(String hash, Event.Type type) {
 		this.hash = hash;
 		this.type = type;
 	}
@@ -269,14 +248,9 @@ class Event implements DomainEvent {
 		this.type = type;
 	}
 
-	public Long getOffset() {
-		return this.offset;
-	}
-
 	@Override
 	public String toString() {
-		return "Event [offset=" + offset + ", hash=[" + this.hash + "], type=" + type
-				+ "]";
+		return "Event [hash=[" + this.hash + "], type=" + type + "]";
 	}
 
 }

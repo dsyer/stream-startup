@@ -7,6 +7,8 @@ import javax.annotation.PostConstruct;
 import javax.sql.DataSource;
 
 import com.example.demo.Event.Type;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
 import org.awaitility.Awaitility;
@@ -32,6 +34,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.util.Base64Utils;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.concurrent.ListenableFuture;
 
@@ -53,7 +56,7 @@ public class DemoApplicationTests {
 		assertThat(err).doesNotContain("kafka_offset=2");
 		assertThat(err).doesNotContain("DONE:");
 		Awaitility.await().until(() -> client.offset(Inputs.PENDING), value -> value > 3);
-		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(3);
+		assertThat(client.max(Event.Type.PENDING)).isGreaterThan(1);
 		client.done(4, "bar1");
 		err = Awaitility.await().until(output::getErr, value -> value.contains("DONE:"));
 		assertThat(client.find(4)).isEqualTo(Event.Type.DONE);
@@ -65,17 +68,38 @@ public class DemoApplicationTests {
 		private final KafkaTemplate<String, byte[]> kafka;
 		private final ConsumerFactory<String, byte[]> factory;
 		private final JdbcTemplate jdbc;
+		private final ObjectMapper objectMapper;
 
 		public KafkaClientConfiguration(KafkaTemplate<String, byte[]> template,
-				ConsumerFactory<String, byte[]> factory, DataSource datasSource) {
-			this.jdbc = new JdbcTemplate(datasSource);
+				ConsumerFactory<String, byte[]> factory, DataSource dataSource) {
+			this.objectMapper = new ObjectMapper();
+			this.jdbc = new JdbcTemplate(dataSource);
 			this.kafka = template;
 			this.factory = factory;
 		}
 
 		public Event.Type find(long id) {
-			return this.jdbc.queryForObject("SELECT type FROM event where offset=?",
-					Event.Type.class, id);
+			String key = Base64Utils.encodeToString(DigestUtils.md5Digest(("foo" + id).getBytes()));
+			System.err.println("Search: " + key);
+			Type result = Type.UNKNOWN;
+			for (String payload : jdbc.queryForList("SELECT payload from message",
+					String.class)) {
+				Event event = getEvent(payload);
+				System.err.println(payload);
+				if (key.equals(event.getHash())) {
+					result = event.getType();
+				}
+			}
+			return result;
+		}
+
+		private Event getEvent(String payload) {
+			try {
+				return objectMapper.readValue(payload, Event.class);
+			}
+			catch (JsonProcessingException e) {
+				throw new IllegalStateException("Cannot deserialize event: " + payload);
+			}
 		}
 
 		public ListenableFuture<SendResult<String, byte[]>> done(long id, String value) {
@@ -86,8 +110,15 @@ public class DemoApplicationTests {
 		}
 
 		public Long max(Type type) {
-			// TODO: where type=type
-			return jdbc.queryForObject("SELECT max(offset) FROM event", Long.class);
+			long result = 0;
+			for (String payload : jdbc.queryForList("SELECT payload from message",
+					String.class)) {
+				Event event = getEvent(payload);
+				if (event.getType() == type) {
+					result++;
+				}
+			}
+			return result;
 		}
 
 		public Long offset(String topic) {
@@ -103,7 +134,7 @@ public class DemoApplicationTests {
 				jdbc.update("INSERT INTO offset (topic, part, offset) values (?,0,?)",
 						Inputs.PENDING, 2);
 			}
-			jdbc.update("DELETE FROM event WHERE offset >= ?", 3);
+			jdbc.update("DELETE FROM message");
 			try (Consumer<String, byte[]> consumer = factory.createConsumer()) {
 				TopicPartition partition = new TopicPartition(Inputs.PENDING, 0);
 				consumer.assign(Collections.singleton(partition));
